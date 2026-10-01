@@ -1,0 +1,330 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String      @id @default(uuid())
+  email        String      @unique
+  passwordHash String
+  fullName     String
+  phone        String?
+  role         String      @default("BD_EXECUTIVE") // SYSTEM_ADMIN, BD_MANAGER, BD_EXECUTIVE
+  status       String      @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  createdColleges   College[]      @relation("UserCreatedColleges")
+  createdProposals  Proposal[]     @relation("UserCreatedProposals")
+  approvedProposals Proposal[]     @relation("UserApprovedProposals")
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+}
+
+model College {
+  id                    String     @id @default(uuid())
+  collegeId             String     @unique // e.g. GEN-COL-2026-00001
+  name                  String
+  placementOfficerName  String
+  placementOfficerEmail String
+  placementOfficerPhone String
+  address               String
+  city                  String
+  state                 String
+  pincode               String
+  studentCount          Int        @default(100)
+  notes                 String?
+  status                String     @default("ACTIVE") // ACTIVE, INACTIVE
+  isDeleted             Boolean    @default(false)
+  deletedAt             DateTime?
+  deletedById           String?
+  createdById           String
+  createdBy             User       @relation("UserCreatedColleges", fields: [createdById], references: [id])
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  proposals             Proposal[]
+
+  @@index([collegeId])
+  @@index([name])
+  @@index([isDeleted])
+}
+
+model Plan {
+  id           String       @id @default(uuid())
+  name         String       // Base, Standard, Premium, Custom Plan
+  code         String       @unique // BASE, STANDARD, PREMIUM, CUSTOM
+  description  String
+  totalHours   Int
+  pricingModel String       @default("HOURLY") // HOURLY, FIXED_PLAN, CUSTOM
+  fixedPrice   Float?
+  displayOrder Int          @default(0)
+  status       String       @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  modules      PlanModule[]
+  proposals    Proposal[]
+}
+
+model PlanModule {
+  id           String   @id @default(uuid())
+  planId       String
+  plan         Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  name         String   // Soft Skills, Verbal, Aptitude, Technical
+  hours        Int
+  displayOrder Int      @default(0)
+
+  @@index([planId])
+}
+
+model TrainingProgram {
+  id           String   @id @default(uuid())
+  name         String
+  code         String   @unique
+  description  String
+  category     String   @default("CORE") // CORE, TECHNICAL, APTITUDE, SOFT_SKILLS, VOCATIONAL
+  hours        Int      @default(15)
+  defaultHours Int      @default(15)
+  pricingType  String   @default("PER_HOUR") // PER_STUDENT, PER_HOUR, FIXED
+  rate         Float    @default(40)
+  defaultPrice Float    @default(40)
+  status       String   @default("ACTIVE") // ACTIVE, INACTIVE
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([code])
+  @@index([status])
+}
+
+model Addon {
+  id          String   @id @default(uuid())
+  name        String   // Mock Interviews, Resume Workshop, Technical Skill-Up, etc.
+  code        String   @unique
+  description String
+  pricingType String   @default("PER_STUDENT") // PER_STUDENT, PER_HOUR, FIXED
+  price       Float    // e.g. 500
+  status      String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  proposalAddons ProposalAddon[]
+}
+
+model Proposal {
+  id                   String               @id @default(uuid())
+  proposalId           String               @unique // e.g. GEN-PROP-2026-00001
+  publicToken          String               @unique // Secure random 64-char hex
+  tokenExpiresAt       DateTime
+  collegeId            String
+  college              College              @relation(fields: [collegeId], references: [id])
+  planId               String
+  plan                 Plan                 @relation(fields: [planId], references: [id])
+  createdById          String
+  createdBy            User                 @relation("UserCreatedProposals", fields: [createdById], references: [id])
+  approvedById         String?
+  approvedBy           User?                @relation("UserApprovedProposals", fields: [approvedById], references: [id])
+  
+  // Custom Plan Program Bundle Data (JSON Snapshot)
+  customProgramsData   String?              // [{ programId, name, hours, pricingType, rate, calculatedCost }]
+
+  // Commercial Specs & Snapshots
+  studentCount         Int
+  minStudents          Int                  @default(50)
+  maxStudents          Int                  @default(2000)
+  totalHours           Int
+  hourlyRateSnapshot   Float                // Rate used at time of creation/approval (e.g. 40)
+  pricingModelSnapshot String               @default("HOURLY")
+  baseTrainingCost     Float
+  addonsTotalCost      Float                @default(0)
+  customItemsTotalCost Float                @default(0)
+  subtotal             Float                @default(0)
+  discountValue        Float                @default(0)
+  discountType         String               @default("FIXED") // FIXED, PERCENTAGE
+  taxableAmount        Float                @default(0)
+  gstRate              Float                @default(18.0) // 18%
+  gstAmount            Float                @default(0)
+  grandTotal           Float                @default(0)
+  finalTotal           Float                // Maintained for backward compatibility (equal to grandTotal)
+  currency             String               @default("INR")
+
+  status               String               @default("DRAFT") // DRAFT, SHARED, VIEWED, COLLEGE_MODIFIED, PENDING_MANAGER_APPROVAL, SUBMITTED, APPROVED, REJECTED, EXPIRED
+  currentVersion       Int                  @default(1)
+  submittedAt          DateTime?
+  approvedAt           DateTime?
+  rejectionReason      String?
+  notes                String?
+  collegeNotes         String?
+  isDeleted            Boolean              @default(false)
+  deletedAt            DateTime?
+  deletedById          String?
+  archiveReason        String?
+
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  addons               ProposalAddon[]
+  customItems          ProposalCustomItem[]
+  versions             ProposalVersion[]
+  acceptances          DigitalAcceptance[]
+  approvals            DigitalApproval[]
+
+  @@index([proposalId])
+  @@index([publicToken])
+  @@index([collegeId])
+  @@index([status])
+  @@index([isDeleted])
+}
+
+model DigitalAcceptance {
+  id              String   @id @default(uuid())
+  acceptanceId    String   @unique // e.g. GEN-ACC-2026-000001
+  proposalId      String
+  proposal        Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposalVersion Int      // Exact version of proposal accepted
+  
+  acceptedAt      DateTime @default(now())
+  acceptedByName  String?
+  acceptedByEmail String?
+  
+  studentCount    Int
+  taxableAmount   Float
+  gstAmount       Float
+  grandTotal      Float
+  
+  documentHash    String?  // SHA-256 integrity hash of accepted snapshot
+  snapshotData    String?  // JSON snapshot of accepted proposal
+  
+  ipAddress       String?
+  userAgent       String?
+  
+  createdAt       DateTime @default(now())
+
+  @@unique([proposalId, proposalVersion])
+  @@index([proposalId])
+  @@index([acceptanceId])
+}
+
+model DigitalApproval {
+  id              String   @id @default(uuid())
+  approvalId      String   @unique // e.g. GEN-APR-2026-000001
+  proposalId      String
+  proposal        Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposalVersion Int      // Exact version of proposal approved
+  
+  approvedAt      DateTime @default(now())
+  approvedById    String?
+  approvedByName  String?  // Actual BD Manager full name
+  approvedByRole  String   @default("BD_MANAGER")
+  
+  studentCount    Int
+  taxableAmount   Float
+  gstAmount       Float
+  grandTotal      Float
+  
+  documentHash    String?  // SHA-256 integrity hash of approved snapshot
+  snapshotData    String?  // JSON snapshot of approved proposal
+  
+  ipAddress       String?
+  userAgent       String?
+  
+  createdAt       DateTime @default(now())
+
+  @@unique([proposalId, proposalVersion])
+  @@index([proposalId])
+  @@index([approvalId])
+}
+
+model ProposalAddon {
+  id                  String   @id @default(uuid())
+  proposalId          String
+  proposal            Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  addonId             String
+  addon               Addon    @relation(fields: [addonId], references: [id])
+  nameSnapshot        String
+  pricingTypeSnapshot String
+  priceSnapshot       Float
+  calculatedCost      Float
+
+  @@index([proposalId])
+  @@index([addonId])
+}
+
+model ProposalCustomItem {
+  id             String   @id @default(uuid())
+  proposalId     String
+  proposal       Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  quantity       Int      @default(1)
+  pricingType    String   @default("PER_STUDENT") // PER_STUDENT, PER_HOUR, FIXED
+  unitPrice      Float
+  calculatedCost Float
+
+  @@index([proposalId])
+}
+
+model ProposalVersion {
+  id              String   @id @default(uuid())
+  proposalId      String
+  proposal        Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  versionNumber   Int
+  snapshotData    String   // JSON string of full proposal state
+  changedByRole   String   // BD_EXECUTIVE, BD_MANAGER, SYSTEM_ADMIN, COLLEGE
+  changeSummary   String
+  calculatedTotal Float
+  createdAt       DateTime @default(now())
+
+  @@index([proposalId])
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String    // Targeted user ID (mandatory for user-specific notification)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String?   // Optional legacy role label
+  title     String
+  message   String
+  link      String?
+  type      String    @default("INFO") // PROPOSAL_SUBMITTED, PROPOSAL_APPROVED, PROPOSAL_REJECTED, INFO
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+model SystemSetting {
+  key         String   @id
+  value       String
+  description String
+  valueType   String   @default("STRING") // NUMBER, STRING, JSON, BOOLEAN
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String   // USER_LOGIN, COLLEGE_CREATED, PROPOSAL_CREATED, etc.
+  entity    String   // PROPOSAL, COLLEGE, PLAN, ADDON, PROGRAM, USER, SETTING
+  entityId  String
+  oldValue  String?  // JSON
+  newValue  String?  // JSON
+  ipAddress String?
+  userAgent String?
+  timestamp DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([action])
+  @@index([timestamp])
+}
