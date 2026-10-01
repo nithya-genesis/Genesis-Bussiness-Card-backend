@@ -1,6 +1,9 @@
 import { prisma } from '../models/prisma.js';
 import { config } from '../config/index.js';
+<<<<<<< HEAD
 import { SettingService } from './settingService.js';
+=======
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
 
 export interface CustomProgramInput {
   programId?: string;
@@ -97,14 +100,48 @@ export interface PricingCalculationResult {
  * Retrieves the live system-wide default hourly rate from DB settings with fallback to env
  */
 export async function getSystemDefaultHourlyRate(): Promise<number> {
+<<<<<<< HEAD
   return SettingService.getDefaultHourlyRate();
+=======
+  try {
+    const setting = await prisma.systemSetting.findUnique({
+      where: { key: 'DEFAULT_HOURLY_RATE' },
+    });
+    if (setting && setting.value) {
+      const parsed = parseFloat(setting.value);
+      if (!isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+  } catch {
+    // Fallback on failure / pre-migration
+  }
+  return config.defaultHourlyRate;
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
 }
 
 /**
  * Retrieves the live system-wide default GST percentage (e.g. 18.0)
  */
 export async function getSystemDefaultGstRate(): Promise<number> {
+<<<<<<< HEAD
   return SettingService.getDefaultGstRate();
+=======
+  try {
+    const setting = await prisma.systemSetting.findUnique({
+      where: { key: 'DEFAULT_GST_RATE' },
+    });
+    if (setting && setting.value) {
+      const parsed = parseFloat(setting.value);
+      if (!isNaN(parsed) && parsed >= 0) {
+        return parsed;
+      }
+    }
+  } catch {
+    // Fallback on failure
+  }
+  return 18.0;
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
 }
 
 /**
@@ -205,7 +242,11 @@ export async function calculateProposalPricing(
 
       for (const prog of parsedCustomPrograms) {
         let pType = prog.pricingType;
+<<<<<<< HEAD
         let pRate = prog.unitRate !== undefined ? prog.unitRate : prog.rate;
+=======
+        let pRate = prog.rate !== undefined ? prog.rate : prog.unitRate;
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
         let pHours = prog.hours;
         let pName = prog.name || prog.programName;
 

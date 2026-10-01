@@ -174,8 +174,11 @@ model Proposal {
   addons               ProposalAddon[]
   customItems          ProposalCustomItem[]
   versions             ProposalVersion[]
+<<<<<<< HEAD
   acceptances          DigitalAcceptance[]
   approvals            DigitalApproval[]
+=======
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
 
   @@index([proposalId])
   @@index([publicToken])
@@ -184,6 +187,7 @@ model Proposal {
   @@index([isDeleted])
 }
 
+<<<<<<< HEAD
 model DigitalAcceptance {
   id              String   @id @default(uuid())
   acceptanceId    String   @unique // e.g. GEN-ACC-2026-000001
@@ -243,6 +247,8 @@ model DigitalApproval {
   @@index([approvalId])
 }
 
+=======
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
 model ProposalAddon {
   id                  String   @id @default(uuid())
   proposalId          String

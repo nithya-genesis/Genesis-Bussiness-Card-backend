@@ -48,6 +48,7 @@ export async function generateProposalId(): Promise<string> {
 
   return candidate;
 }
+<<<<<<< HEAD
 
 /**
  * Generates sequential, year-coded unique IDs for Digital Acceptances (e.g. GEN-ACC-2026-000001)
@@ -96,3 +97,5 @@ export async function generateApprovalId(): Promise<string> {
 
   return candidate;
 }
+=======
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)

@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 import crypto from 'crypto';
+=======
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../models/prisma.js';
 import {
@@ -9,7 +12,11 @@ import {
   rejectProposalSchema,
 } from '../validators/index.js';
 import { calculateProposalPricing } from '../services/pricingEngine.js';
+<<<<<<< HEAD
 import { generateProposalId, generateApprovalId } from '../utils/idGenerator.js';
+=======
+import { generateProposalId } from '../utils/idGenerator.js';
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
 import { generateSecureToken } from '../utils/token.js';
 import { QRService } from '../qr/qrService.js';
 import { PDFService } from '../pdf/pdfService.js';
@@ -17,7 +24,10 @@ import { logAuditEvent } from '../services/auditService.js';
 import { NotificationService } from '../services/notificationService.js';
 import { formatINR } from '../utils/currency.js';
 import { config } from '../config/index.js';
+<<<<<<< HEAD
 import { SettingService } from '../services/settingService.js';
+=======
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
 
 export class ProposalController {
   /**
@@ -157,8 +167,11 @@ export class ProposalController {
           approvedBy: { select: { id: true, fullName: true, email: true } },
           addons: { include: { addon: true } },
           customItems: true,
+<<<<<<< HEAD
           acceptances: { orderBy: { acceptedAt: 'desc' } },
           approvals: { orderBy: { approvedAt: 'desc' } },
+=======
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
         },
         orderBy: { submittedAt: 'desc' },
       });
@@ -189,6 +202,7 @@ export class ProposalController {
           },
           customItems: true,
           createdBy: {
+<<<<<<< HEAD
             select: { id: true, fullName: true, email: true, phone: true, role: true },
           },
           approvedBy: {
@@ -199,6 +213,12 @@ export class ProposalController {
           },
           approvals: {
             orderBy: { approvedAt: 'desc' },
+=======
+            select: { id: true, fullName: true, email: true, phone: true },
+          },
+          approvedBy: {
+            select: { id: true, fullName: true, email: true },
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
           },
           versions: {
             orderBy: { versionNumber: 'desc' },
@@ -228,6 +248,7 @@ export class ProposalController {
       const gstPerStudent = proposal.studentCount > 0 ? Math.round((proposal.gstAmount / proposal.studentCount) * 100) / 100 : 0;
       const finalCostPerStudent = proposal.studentCount > 0 ? Math.round((proposal.grandTotal / proposal.studentCount) * 100) / 100 : 0;
 
+<<<<<<< HEAD
       const digitalAcceptance = proposal.acceptances && proposal.acceptances.length > 0
         ? proposal.acceptances.find((a: any) => a.proposalVersion === proposal.currentVersion) || proposal.acceptances[0]
         : null;
@@ -236,6 +257,8 @@ export class ProposalController {
         ? proposal.approvals.find((a: any) => a.proposalVersion === proposal.currentVersion) || proposal.approvals[0]
         : null;
 
+=======
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
       res.status(200).json({
         success: true,
         data: {
@@ -246,8 +269,11 @@ export class ProposalController {
           finalCostPerStudent,
           shareLink: publicUrl,
           qrCodeDataUrl: qrDataUrl,
+<<<<<<< HEAD
           digitalAcceptance,
           digitalApproval,
+=======
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
         },
       });
     } catch (err) {
@@ -285,12 +311,17 @@ export class ProposalController {
 
       const generatedProposalId = await generateProposalId();
       const publicToken = generateSecureToken();
+<<<<<<< HEAD
       const validityDays = await SettingService.getProposalValidityDays();
       const tokenExpiresAt = new Date();
       tokenExpiresAt.setDate(tokenExpiresAt.getDate() + validityDays);
 
       const studentDefaults = await SettingService.getStudentDefaults();
       const currency = await SettingService.getCurrency();
+=======
+      const tokenExpiresAt = new Date();
+      tokenExpiresAt.setDate(tokenExpiresAt.getDate() + config.proposalTokenExpiryDays);
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
 
       const customProgramsData = calculated.customPrograms ? JSON.stringify(calculated.customPrograms) : null;
 
@@ -304,8 +335,13 @@ export class ProposalController {
           createdById: req.user!.userId,
           customProgramsData,
           studentCount: validated.studentCount,
+<<<<<<< HEAD
           minStudents: validated.minStudents || studentDefaults.min,
           maxStudents: validated.maxStudents || studentDefaults.max,
+=======
+          minStudents: validated.minStudents || 50,
+          maxStudents: validated.maxStudents || 2000,
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
           totalHours: calculated.totalHours,
           hourlyRateSnapshot: calculated.effectiveHourlyRate,
           pricingModelSnapshot: calculated.pricingModel,
@@ -320,7 +356,11 @@ export class ProposalController {
           gstAmount: calculated.gstAmount,
           grandTotal: calculated.grandTotal,
           finalTotal: calculated.finalTotal,
+<<<<<<< HEAD
           currency,
+=======
+          currency: 'INR',
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
           status: 'DRAFT',
           currentVersion: 1,
           notes: validated.notes || null,
@@ -700,6 +740,7 @@ export class ProposalController {
         },
       });
 
+<<<<<<< HEAD
       // Record Genesis Digital Approval for this exact proposal version
       let digitalApproval = await prisma.digitalApproval.findUnique({
         where: {
@@ -760,13 +801,21 @@ export class ProposalController {
         userAgent: req.get('user-agent') || undefined,
       });
 
+=======
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
       await prisma.proposalVersion.create({
         data: {
           proposalId: id,
           versionNumber: proposal.currentVersion,
+<<<<<<< HEAD
           snapshotData: JSON.stringify({ ...updated, digitalApproval }),
           changedByRole: req.user!.role,
           changeSummary: `Proposal officially digitally approved by BD Manager ${req.user!.fullName} (Ref: ${digitalApproval.approvalId})`,
+=======
+          snapshotData: JSON.stringify(updated),
+          changedByRole: req.user!.role,
+          changeSummary: `Proposal officially approved by BD Manager ${req.user!.fullName}`,
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
           calculatedTotal: updated.grandTotal || updated.finalTotal,
         },
       });
@@ -793,10 +842,14 @@ export class ProposalController {
       res.status(200).json({
         success: true,
         message: 'Proposal approved and finalized successfully',
+<<<<<<< HEAD
         data: {
           ...updated,
           digitalApproval,
         },
+=======
+        data: updated,
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
       });
     } catch (err) {
       next(err);
@@ -869,8 +922,11 @@ export class ProposalController {
           customItems: true,
           createdBy: { select: { fullName: true, email: true, phone: true } },
           approvedBy: { select: { fullName: true, email: true } },
+<<<<<<< HEAD
           acceptances: { orderBy: { acceptedAt: 'desc' } },
           approvals: { orderBy: { approvedAt: 'desc' } },
+=======
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
         },
       });
 
@@ -903,6 +959,7 @@ export class ProposalController {
         }
       }
 
+<<<<<<< HEAD
       const customProgramsList = customPrograms.map((cp) => {
         const pType = cp.pricingType || 'PER_HOUR';
         const pRate = cp.unitRate !== undefined ? cp.unitRate : (cp.rate || 0);
@@ -935,6 +992,8 @@ export class ProposalController {
         ? proposal.approvals.find((a: any) => a.proposalVersion === proposal.currentVersion) || proposal.approvals[0]
         : null;
 
+=======
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
       const pdfBuffer = await PDFService.generateProposalPdf({
         proposalId: proposal.proposalId,
         publicToken: proposal.publicToken,
@@ -958,7 +1017,11 @@ export class ProposalController {
           description: proposal.plan.description,
           totalHours: proposal.totalHours,
           modules: customPrograms.length > 0
+<<<<<<< HEAD
             ? customPrograms.map((cp) => ({ name: cp.name || cp.programName, hours: cp.hours }))
+=======
+            ? customPrograms.map((cp) => ({ name: cp.name, hours: cp.hours }))
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
             : proposal.plan.modules.map((m: { name: string; hours: number }) => ({
                 name: m.name,
                 hours: m.hours,
@@ -967,7 +1030,10 @@ export class ProposalController {
         studentCount: proposal.studentCount,
         hourlyRate: proposal.hourlyRateSnapshot,
         baseTrainingCost: proposal.baseTrainingCost,
+<<<<<<< HEAD
         customPrograms: customProgramsList,
+=======
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
         addons: proposal.addons.map((a: { nameSnapshot: string; pricingTypeSnapshot: string; priceSnapshot: number; calculatedCost: number }) => ({
           name: a.nameSnapshot,
           pricingType: a.pricingTypeSnapshot,
@@ -995,8 +1061,11 @@ export class ProposalController {
         finalTotal: grandTotal,
         createdBy: proposal.createdBy,
         approvedBy: proposal.approvedBy,
+<<<<<<< HEAD
         digitalAcceptance,
         digitalApproval,
+=======
+>>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
       });
 
       await logAuditEvent({
