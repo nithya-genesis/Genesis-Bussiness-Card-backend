@@ -1,29 +1,36 @@
-import crypto from 'crypto';
-import { Request, Response, NextFunction } from 'express';
-import { prisma } from '../models/prisma.js';
+import crypto from "crypto";
+import { Request, Response, NextFunction } from "express";
+import { prisma } from "../models/prisma.js";
 import {
   createProposalSchema,
   updateProposalSchema,
   calculatePriceSchema,
   approveProposalSchema,
   rejectProposalSchema,
-} from '../validators/index.js';
-import { calculateProposalPricing } from '../services/pricingEngine.js';
-import { generateProposalId, generateApprovalId } from '../utils/idGenerator.js';
-import { generateSecureToken } from '../utils/token.js';
-import { QRService } from '../qr/qrService.js';
-import { PDFService } from '../pdf/pdfService.js';
-import { logAuditEvent } from '../services/auditService.js';
-import { NotificationService } from '../services/notificationService.js';
-import { formatINR } from '../utils/currency.js';
-import { config } from '../config/index.js';
-import { SettingService } from '../services/settingService.js';
+} from "../validators/index.js";
+import { calculateProposalPricing } from "../services/pricingEngine.js";
+import {
+  generateProposalId,
+  generateApprovalId,
+} from "../utils/idGenerator.js";
+import { generateSecureToken } from "../utils/token.js";
+import { QRService } from "../qr/qrService.js";
+import { PDFService } from "../pdf/pdfService.js";
+import { logAuditEvent } from "../services/auditService.js";
+import { NotificationService } from "../services/notificationService.js";
+import { formatINR } from "../utils/currency.js";
+import { config } from "../config/index.js";
+import { SettingService } from "../services/settingService.js";
 
 export class ProposalController {
   /**
    * Pure calculation endpoint for live reactive preview
    */
-  public static async calculate(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async calculate(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const validated = calculatePriceSchema.parse(req.body);
       const result = await calculateProposalPricing(validated);
@@ -33,24 +40,28 @@ export class ProposalController {
     }
   }
 
-  public static async list(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async list(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
-      const page = parseInt(req.query.page as string || '1', 10);
-      const limit = parseInt(req.query.limit as string || '20', 10);
-      const search = (req.query.search as string || '').trim();
+      const page = parseInt((req.query.page as string) || "1", 10);
+      const limit = parseInt((req.query.limit as string) || "20", 10);
+      const search = ((req.query.search as string) || "").trim();
       const status = req.query.status as string;
       const planId = req.query.planId as string;
       const collegeId = req.query.collegeId as string;
-      const sortBy = (req.query.sortBy as string || 'newest');
+      const sortBy = (req.query.sortBy as string) || "newest";
 
       const skip = (page - 1) * limit;
       const where: any = {};
 
-      if (status && status !== 'ALL') {
-        if (status === 'ARCHIVED') {
-          where.OR = [{ status: 'ARCHIVED' }, { isDeleted: true }];
-        } else if (status === 'PENDING_MANAGER_APPROVAL') {
-          where.status = { in: ['PENDING_MANAGER_APPROVAL', 'SUBMITTED'] };
+      if (status && status !== "ALL") {
+        if (status === "ARCHIVED") {
+          where.OR = [{ status: "ARCHIVED" }, { isDeleted: true }];
+        } else if (status === "PENDING_MANAGER_APPROVAL") {
+          where.status = { in: ["PENDING_MANAGER_APPROVAL", "SUBMITTED"] };
           where.isDeleted = false;
         } else {
           where.status = status;
@@ -58,7 +69,7 @@ export class ProposalController {
         }
       } else {
         where.isDeleted = false;
-        where.status = { not: 'ARCHIVED' };
+        where.status = { not: "ARCHIVED" };
       }
       if (planId) {
         where.planId = planId;
@@ -76,10 +87,10 @@ export class ProposalController {
         ];
       }
 
-      let orderBy: any = { createdAt: 'desc' };
-      if (sortBy === 'oldest') orderBy = { createdAt: 'asc' };
-      if (sortBy === 'highest_value') orderBy = { finalTotal: 'desc' };
-      if (sortBy === 'lowest_value') orderBy = { finalTotal: 'asc' };
+      let orderBy: any = { createdAt: "desc" };
+      if (sortBy === "oldest") orderBy = { createdAt: "asc" };
+      if (sortBy === "highest_value") orderBy = { finalTotal: "desc" };
+      if (sortBy === "lowest_value") orderBy = { finalTotal: "asc" };
 
       const [total, proposals] = await Promise.all([
         prisma.proposal.count({ where }),
@@ -141,26 +152,32 @@ export class ProposalController {
   /**
    * Dedicated list for BD Manager review: Proposals pending approval
    */
-  public static async getPendingApproval(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async getPendingApproval(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const proposals = await prisma.proposal.findMany({
         where: {
-          status: { in: ['PENDING_MANAGER_APPROVAL', 'SUBMITTED'] },
+          status: { in: ["PENDING_MANAGER_APPROVAL", "SUBMITTED"] },
           isDeleted: false,
         },
         include: {
           college: true,
           plan: {
-            include: { modules: { orderBy: { displayOrder: 'asc' } } },
+            include: { modules: { orderBy: { displayOrder: "asc" } } },
           },
-          createdBy: { select: { id: true, fullName: true, email: true, phone: true } },
+          createdBy: {
+            select: { id: true, fullName: true, email: true, phone: true },
+          },
           approvedBy: { select: { id: true, fullName: true, email: true } },
           addons: { include: { addon: true } },
           customItems: true,
-          acceptances: { orderBy: { acceptedAt: 'desc' } },
-          approvals: { orderBy: { approvedAt: 'desc' } },
+          acceptances: { orderBy: { acceptedAt: "desc" } },
+          approvals: { orderBy: { approvedAt: "desc" } },
         },
-        orderBy: { submittedAt: 'desc' },
+        orderBy: { submittedAt: "desc" },
       });
 
       res.status(200).json({
@@ -174,7 +191,11 @@ export class ProposalController {
     }
   }
 
-  public static async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async getById(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const id = String(req.params.id);
       const proposal = await prisma.proposal.findUnique({
@@ -182,32 +203,38 @@ export class ProposalController {
         include: {
           college: true,
           plan: {
-            include: { modules: { orderBy: { displayOrder: 'asc' } } },
+            include: { modules: { orderBy: { displayOrder: "asc" } } },
           },
           addons: {
             include: { addon: true },
           },
           customItems: true,
           createdBy: {
-            select: { id: true, fullName: true, email: true, phone: true, role: true },
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              phone: true,
+              role: true,
+            },
           },
           approvedBy: {
             select: { id: true, fullName: true, email: true, role: true },
           },
           acceptances: {
-            orderBy: { acceptedAt: 'desc' },
+            orderBy: { acceptedAt: "desc" },
           },
           approvals: {
-            orderBy: { approvedAt: 'desc' },
+            orderBy: { approvedAt: "desc" },
           },
           versions: {
-            orderBy: { versionNumber: 'desc' },
+            orderBy: { versionNumber: "desc" },
           },
         },
       });
 
       if (!proposal) {
-        res.status(404).json({ success: false, message: 'Proposal not found' });
+        res.status(404).json({ success: false, message: "Proposal not found" });
         return;
       }
 
@@ -224,17 +251,34 @@ export class ProposalController {
       const publicUrl = QRService.getPublicProposalUrl(proposal.publicToken);
       const qrDataUrl = await QRService.generateDataUrl(proposal.publicToken);
 
-      const costPerStudentBeforeGst = proposal.studentCount > 0 ? Math.round((proposal.taxableAmount / proposal.studentCount) * 100) / 100 : 0;
-      const gstPerStudent = proposal.studentCount > 0 ? Math.round((proposal.gstAmount / proposal.studentCount) * 100) / 100 : 0;
-      const finalCostPerStudent = proposal.studentCount > 0 ? Math.round((proposal.grandTotal / proposal.studentCount) * 100) / 100 : 0;
+      const costPerStudentBeforeGst =
+        proposal.studentCount > 0
+          ? Math.round((proposal.taxableAmount / proposal.studentCount) * 100) /
+            100
+          : 0;
+      const gstPerStudent =
+        proposal.studentCount > 0
+          ? Math.round((proposal.gstAmount / proposal.studentCount) * 100) / 100
+          : 0;
+      const finalCostPerStudent =
+        proposal.studentCount > 0
+          ? Math.round((proposal.grandTotal / proposal.studentCount) * 100) /
+            100
+          : 0;
 
-      const digitalAcceptance = proposal.acceptances && proposal.acceptances.length > 0
-        ? proposal.acceptances.find((a: any) => a.proposalVersion === proposal.currentVersion) || proposal.acceptances[0]
-        : null;
+      const digitalAcceptance =
+        proposal.acceptances && proposal.acceptances.length > 0
+          ? proposal.acceptances.find(
+              (a: any) => a.proposalVersion === proposal.currentVersion,
+            ) || proposal.acceptances[0]
+          : null;
 
-      const digitalApproval = proposal.approvals && proposal.approvals.length > 0
-        ? proposal.approvals.find((a: any) => a.proposalVersion === proposal.currentVersion) || proposal.approvals[0]
-        : null;
+      const digitalApproval =
+        proposal.approvals && proposal.approvals.length > 0
+          ? proposal.approvals.find(
+              (a: any) => a.proposalVersion === proposal.currentVersion,
+            ) || proposal.approvals[0]
+          : null;
 
       res.status(200).json({
         success: true,
@@ -255,7 +299,11 @@ export class ProposalController {
     }
   }
 
-  public static async create(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async create(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const validated = createProposalSchema.parse(req.body);
 
@@ -264,7 +312,9 @@ export class ProposalController {
         where: { id: validated.collegeId },
       });
       if (!college) {
-        res.status(400).json({ success: false, message: 'Invalid College specified' });
+        res
+          .status(400)
+          .json({ success: false, message: "Invalid College specified" });
         return;
       }
 
@@ -276,7 +326,8 @@ export class ProposalController {
         hourlyRate: validated.hourlyRate,
         pricingModel: validated.pricingModel,
         selectedAddonIds: validated.selectedAddonIds,
-        customPrograms: (validated.customProgramsData || validated.customPrograms) as any,
+        customPrograms: (validated.customProgramsData ||
+          validated.customPrograms) as any,
         customProgramsData: validated.customProgramsData,
         customItems: validated.customItems,
         discountType: validated.discountType,
@@ -292,7 +343,9 @@ export class ProposalController {
       const studentDefaults = await SettingService.getStudentDefaults();
       const currency = await SettingService.getCurrency();
 
-      const customProgramsData = calculated.customPrograms ? JSON.stringify(calculated.customPrograms) : null;
+      const customProgramsData = calculated.customPrograms
+        ? JSON.stringify(calculated.customPrograms)
+        : null;
 
       const proposal = await prisma.proposal.create({
         data: {
@@ -314,14 +367,14 @@ export class ProposalController {
           customItemsTotalCost: calculated.customItemsTotalCost,
           subtotal: calculated.subtotal,
           discountValue: validated.discountValue || 0,
-          discountType: validated.discountType || 'FIXED',
+          discountType: validated.discountType || "FIXED",
           taxableAmount: calculated.taxableAmount,
           gstRate: calculated.gstRate,
           gstAmount: calculated.gstAmount,
           grandTotal: calculated.grandTotal,
           finalTotal: calculated.finalTotal,
           currency,
-          status: 'DRAFT',
+          status: "DRAFT",
           currentVersion: 1,
           notes: validated.notes || null,
           addons: {
@@ -367,8 +420,8 @@ export class ProposalController {
 
       await logAuditEvent({
         userId: req.user?.userId,
-        action: 'PROPOSAL_CREATED',
-        entity: 'PROPOSAL',
+        action: "PROPOSAL_CREATED",
+        entity: "PROPOSAL",
         entityId: proposal.id,
         newValue: {
           proposalId: proposal.proposalId,
@@ -377,24 +430,24 @@ export class ProposalController {
           studentCount: proposal.studentCount,
         },
         ipAddress: req.ip,
-        userAgent: req.get('user-agent') || undefined,
+        userAgent: req.get("user-agent") || undefined,
       });
 
       if (calculated.customItems && calculated.customItems.length > 0) {
         await logAuditEvent({
           userId: req.user?.userId,
-          action: 'CUSTOM_ITEM_ADDED',
-          entity: 'PROPOSAL',
+          action: "CUSTOM_ITEM_ADDED",
+          entity: "PROPOSAL",
           entityId: proposal.id,
           newValue: calculated.customItems,
           ipAddress: req.ip,
-          userAgent: req.get('user-agent') || undefined,
+          userAgent: req.get("user-agent") || undefined,
         });
       }
 
       res.status(201).json({
         success: true,
-        message: 'Proposal created successfully',
+        message: "Proposal created successfully",
         data: proposal,
       });
     } catch (err) {
@@ -402,7 +455,11 @@ export class ProposalController {
     }
   }
 
-  public static async update(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async update(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const id = String(req.params.id);
       const validated = updateProposalSchema.parse(req.body);
@@ -413,48 +470,70 @@ export class ProposalController {
       });
 
       if (!existing) {
-        res.status(404).json({ success: false, message: 'Proposal not found' });
+        res.status(404).json({ success: false, message: "Proposal not found" });
         return;
       }
 
       const userUid = req.user?.id || req.user?.userId;
-      if (req.user?.role === 'BD_EXECUTIVE' && existing.createdById !== userUid) {
-        res.status(403).json({ success: false, message: 'You can only edit proposals that you created' });
+      if (
+        req.user?.role === "BD_EXECUTIVE" &&
+        existing.createdById !== userUid
+      ) {
+        res
+          .status(403)
+          .json({
+            success: false,
+            message: "You can only edit proposals that you created",
+          });
         return;
       }
 
-      if (existing.status === 'APPROVED') {
+      if (existing.status === "APPROVED") {
         res.status(400).json({
           success: false,
-          message: 'Approved proposals are locked and immutable. Create a new proposal version to introduce revisions.',
-          code: 'PROPOSAL_LOCKED',
+          message:
+            "Approved proposals are locked and immutable. Create a new proposal version to introduce revisions.",
+          code: "PROPOSAL_LOCKED",
         });
         return;
       }
 
       const planId = validated.planId || existing.planId;
       const studentCount = validated.studentCount || existing.studentCount;
-      const hourlyRate = validated.hourlyRate !== undefined ? validated.hourlyRate : existing.hourlyRateSnapshot;
-      const pricingModel = (validated.pricingModel || existing.pricingModelSnapshot) as any;
-      const selectedAddonIds = validated.selectedAddonIds !== undefined 
-        ? validated.selectedAddonIds 
-        : existing.addons.map((a) => a.addonId);
-      const discountType = (validated.discountType || existing.discountType) as any;
-      const discountValue = validated.discountValue !== undefined ? validated.discountValue : existing.discountValue;
+      const hourlyRate =
+        validated.hourlyRate !== undefined
+          ? validated.hourlyRate
+          : existing.hourlyRateSnapshot;
+      const pricingModel = (validated.pricingModel ||
+        existing.pricingModelSnapshot) as any;
+      const selectedAddonIds =
+        validated.selectedAddonIds !== undefined
+          ? validated.selectedAddonIds
+          : existing.addons.map((a) => a.addonId);
+      const discountType = (validated.discountType ||
+        existing.discountType) as any;
+      const discountValue =
+        validated.discountValue !== undefined
+          ? validated.discountValue
+          : existing.discountValue;
 
-      const customPrograms = validated.customPrograms !== undefined 
-        ? validated.customPrograms 
-        : (existing.customProgramsData ? JSON.parse(existing.customProgramsData) : []);
+      const customPrograms =
+        validated.customPrograms !== undefined
+          ? validated.customPrograms
+          : existing.customProgramsData
+            ? JSON.parse(existing.customProgramsData)
+            : [];
 
-      const customItems = validated.customItems !== undefined
-        ? validated.customItems
-        : existing.customItems.map((ci) => ({
-            name: ci.name,
-            description: ci.description || undefined,
-            quantity: ci.quantity,
-            pricingType: ci.pricingType as any,
-            unitPrice: ci.unitPrice,
-          }));
+      const customItems =
+        validated.customItems !== undefined
+          ? validated.customItems
+          : existing.customItems.map((ci) => ({
+              name: ci.name,
+              description: ci.description || undefined,
+              quantity: ci.quantity,
+              pricingType: ci.pricingType as any,
+              unitPrice: ci.unitPrice,
+            }));
 
       const calculated = await calculateProposalPricing({
         planId,
@@ -498,11 +577,17 @@ export class ProposalController {
       }
 
       const nextVersion = existing.currentVersion + 1;
-      const customProgramsData = calculated.customPrograms ? JSON.stringify(calculated.customPrograms) : null;
+      const customProgramsData = calculated.customPrograms
+        ? JSON.stringify(calculated.customPrograms)
+        : null;
 
       let nextStatus = existing.status;
-      if (existing.status === 'REJECTED' || existing.status === 'COLLEGE_MODIFIED' || existing.status === 'MODIFIED_BY_COLLEGE') {
-        nextStatus = 'DRAFT';
+      if (
+        existing.status === "REJECTED" ||
+        existing.status === "COLLEGE_MODIFIED" ||
+        existing.status === "MODIFIED_BY_COLLEGE"
+      ) {
+        nextStatus = "DRAFT";
       }
       if (validated.status) {
         nextStatus = validated.status;
@@ -514,8 +599,14 @@ export class ProposalController {
           planId: calculated.planId,
           customProgramsData,
           studentCount,
-          minStudents: validated.minStudents !== undefined ? validated.minStudents : existing.minStudents,
-          maxStudents: validated.maxStudents !== undefined ? validated.maxStudents : existing.maxStudents,
+          minStudents:
+            validated.minStudents !== undefined
+              ? validated.minStudents
+              : existing.minStudents,
+          maxStudents:
+            validated.maxStudents !== undefined
+              ? validated.maxStudents
+              : existing.maxStudents,
           totalHours: calculated.totalHours,
           hourlyRateSnapshot: calculated.effectiveHourlyRate,
           pricingModelSnapshot: calculated.pricingModel,
@@ -531,9 +622,11 @@ export class ProposalController {
           grandTotal: calculated.grandTotal,
           finalTotal: calculated.finalTotal,
           status: nextStatus,
-          rejectionReason: nextStatus === 'DRAFT' ? null : existing.rejectionReason,
+          rejectionReason:
+            nextStatus === "DRAFT" ? null : existing.rejectionReason,
           currentVersion: nextVersion,
-          notes: validated.notes !== undefined ? validated.notes : existing.notes,
+          notes:
+            validated.notes !== undefined ? validated.notes : existing.notes,
         },
         include: {
           college: true,
@@ -557,18 +650,25 @@ export class ProposalController {
 
       await logAuditEvent({
         userId: req.user?.userId,
-        action: 'PROPOSAL_UPDATED',
-        entity: 'PROPOSAL',
+        action: "PROPOSAL_UPDATED",
+        entity: "PROPOSAL",
         entityId: id,
-        oldValue: { grandTotal: existing.grandTotal || existing.finalTotal, studentCount: existing.studentCount },
-        newValue: { grandTotal: updated.grandTotal, studentCount: updated.studentCount, version: nextVersion },
+        oldValue: {
+          grandTotal: existing.grandTotal || existing.finalTotal,
+          studentCount: existing.studentCount,
+        },
+        newValue: {
+          grandTotal: updated.grandTotal,
+          studentCount: updated.studentCount,
+          version: nextVersion,
+        },
         ipAddress: req.ip,
-        userAgent: req.get('user-agent') || undefined,
+        userAgent: req.get("user-agent") || undefined,
       });
 
       res.status(200).json({
         success: true,
-        message: 'Proposal updated successfully',
+        message: "Proposal updated successfully",
         data: updated,
       });
     } catch (err) {
@@ -576,20 +676,24 @@ export class ProposalController {
     }
   }
 
-  public static async generateShareLink(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async generateShareLink(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const id = String(req.params.id);
       const proposal = await prisma.proposal.findUnique({ where: { id } });
 
       if (!proposal) {
-        res.status(404).json({ success: false, message: 'Proposal not found' });
+        res.status(404).json({ success: false, message: "Proposal not found" });
         return;
       }
 
-      if (proposal.status === 'DRAFT') {
+      if (proposal.status === "DRAFT") {
         await prisma.proposal.update({
           where: { id },
-          data: { status: 'SHARED' },
+          data: { status: "SHARED" },
         });
       }
 
@@ -598,17 +702,17 @@ export class ProposalController {
 
       await logAuditEvent({
         userId: req.user?.userId,
-        action: 'PROPOSAL_SHARED',
-        entity: 'PROPOSAL',
+        action: "PROPOSAL_SHARED",
+        entity: "PROPOSAL",
         entityId: proposal.id,
         newValue: { publicUrl },
         ipAddress: req.ip,
-        userAgent: req.get('user-agent') || undefined,
+        userAgent: req.get("user-agent") || undefined,
       });
 
       res.status(200).json({
         success: true,
-        message: 'Shareable proposal link generated',
+        message: "Shareable proposal link generated",
         data: {
           publicToken: proposal.publicToken,
           shareLink: publicUrl,
@@ -621,13 +725,17 @@ export class ProposalController {
     }
   }
 
-  public static async getQrCode(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async getQrCode(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const id = String(req.params.id);
       const proposal = await prisma.proposal.findUnique({ where: { id } });
 
       if (!proposal) {
-        res.status(404).json({ success: false, message: 'Proposal not found' });
+        res.status(404).json({ success: false, message: "Proposal not found" });
         return;
       }
 
@@ -649,27 +757,38 @@ export class ProposalController {
     }
   }
 
-  public static async downloadQrImage(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async downloadQrImage(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const id = String(req.params.id);
       const proposal = await prisma.proposal.findUnique({ where: { id } });
 
       if (!proposal) {
-        res.status(404).json({ success: false, message: 'Proposal not found' });
+        res.status(404).json({ success: false, message: "Proposal not found" });
         return;
       }
 
       const pngBuffer = await QRService.generateBuffer(proposal.publicToken);
 
-      res.setHeader('Content-Type', 'image/png');
-      res.setHeader('Content-Disposition', `attachment; filename="QR_${proposal.proposalId}.png"`);
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="QR_${proposal.proposalId}.png"`,
+      );
       res.send(pngBuffer);
     } catch (err) {
       next(err);
     }
   }
 
-  public static async approve(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async approve(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const id = String(req.params.id);
       const validated = approveProposalSchema.parse(req.body);
@@ -680,14 +799,14 @@ export class ProposalController {
       });
 
       if (!proposal) {
-        res.status(404).json({ success: false, message: 'Proposal not found' });
+        res.status(404).json({ success: false, message: "Proposal not found" });
         return;
       }
 
       const updated = await prisma.proposal.update({
         where: { id },
         data: {
-          status: 'APPROVED',
+          status: "APPROVED",
           approvedById: req.user!.userId,
           approvedAt: new Date(),
           notes: validated.notes || proposal.notes,
@@ -722,7 +841,10 @@ export class ProposalController {
           studentCount: updated.studentCount,
           timestamp: new Date().toISOString(),
         });
-        const documentHash = crypto.createHash('sha256').update(integrityPayload).digest('hex');
+        const documentHash = crypto
+          .createHash("sha256")
+          .update(integrityPayload)
+          .digest("hex");
 
         digitalApproval = await prisma.digitalApproval.create({
           data: {
@@ -731,7 +853,7 @@ export class ProposalController {
             proposalVersion: proposal.currentVersion,
             approvedById: req.user!.userId,
             approvedByName: req.user!.fullName,
-            approvedByRole: req.user!.role || 'BD_MANAGER',
+            approvedByRole: req.user!.role || "BD_MANAGER",
             studentCount: updated.studentCount,
             taxableAmount: updated.taxableAmount,
             gstAmount: updated.gstAmount,
@@ -739,15 +861,15 @@ export class ProposalController {
             documentHash,
             snapshotData: JSON.stringify(updated),
             ipAddress: req.ip || null,
-            userAgent: req.get('user-agent') || null,
+            userAgent: req.get("user-agent") || null,
           },
         });
       }
 
       await logAuditEvent({
         userId: req.user?.userId,
-        action: 'PROPOSAL_DIGITALLY_APPROVED',
-        entity: 'PROPOSAL',
+        action: "PROPOSAL_DIGITALLY_APPROVED",
+        entity: "PROPOSAL",
         entityId: id,
         newValue: {
           approvalId: digitalApproval.approvalId,
@@ -757,7 +879,7 @@ export class ProposalController {
           documentHash: digitalApproval.documentHash,
         },
         ipAddress: req.ip,
-        userAgent: req.get('user-agent') || undefined,
+        userAgent: req.get("user-agent") || undefined,
       });
 
       await prisma.proposalVersion.create({
@@ -773,12 +895,15 @@ export class ProposalController {
 
       await logAuditEvent({
         userId: req.user?.userId,
-        action: 'PROPOSAL_APPROVED',
-        entity: 'PROPOSAL',
+        action: "PROPOSAL_APPROVED",
+        entity: "PROPOSAL",
         entityId: id,
-        newValue: { approvedBy: req.user?.fullName, grandTotal: updated.grandTotal },
+        newValue: {
+          approvedBy: req.user?.fullName,
+          grandTotal: updated.grandTotal,
+        },
         ipAddress: req.ip,
-        userAgent: req.get('user-agent') || undefined,
+        userAgent: req.get("user-agent") || undefined,
       });
 
       if (proposal.createdById) {
@@ -786,13 +911,13 @@ export class ProposalController {
           updated.proposalId,
           updated.college.name,
           proposal.createdById,
-          updated.id
+          updated.id,
         );
       }
 
       res.status(200).json({
         success: true,
-        message: 'Proposal approved and finalized successfully',
+        message: "Proposal approved and finalized successfully",
         data: {
           ...updated,
           digitalApproval,
@@ -803,25 +928,32 @@ export class ProposalController {
     }
   }
 
-  public static async reject(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async reject(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const id = String(req.params.id);
       const validated = rejectProposalSchema.parse(req.body);
-      const reason = validated.rejectionReason || validated.reason || 'Proposal rejected by Manager';
+      const reason =
+        validated.rejectionReason ||
+        validated.reason ||
+        "Proposal rejected by Manager";
 
       const proposal = await prisma.proposal.findUnique({
         where: { id },
         include: { college: true, createdBy: true },
       });
       if (!proposal) {
-        res.status(404).json({ success: false, message: 'Proposal not found' });
+        res.status(404).json({ success: false, message: "Proposal not found" });
         return;
       }
 
       const updated = await prisma.proposal.update({
         where: { id },
         data: {
-          status: 'REJECTED',
+          status: "REJECTED",
           rejectionReason: reason,
         },
         include: { college: true },
@@ -829,12 +961,12 @@ export class ProposalController {
 
       await logAuditEvent({
         userId: req.user?.userId,
-        action: 'PROPOSAL_REJECTED',
-        entity: 'PROPOSAL',
+        action: "PROPOSAL_REJECTED",
+        entity: "PROPOSAL",
         entityId: id,
         newValue: { rejectionReason: reason },
         ipAddress: req.ip,
-        userAgent: req.get('user-agent') || undefined,
+        userAgent: req.get("user-agent") || undefined,
       });
 
       if (proposal.createdById) {
@@ -843,13 +975,14 @@ export class ProposalController {
           proposal.college.name,
           proposal.createdById,
           reason,
-          proposal.id
+          proposal.id,
         );
       }
 
       res.status(200).json({
         success: true,
-        message: 'Proposal rejected and notification dispatched to BD Executive',
+        message:
+          "Proposal rejected and notification dispatched to BD Executive",
         data: updated,
       });
     } catch (err) {
@@ -857,42 +990,53 @@ export class ProposalController {
     }
   }
 
-  public static async downloadPdf(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async downloadPdf(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const id = String(req.params.id);
       const proposal = await prisma.proposal.findUnique({
         where: { id },
         include: {
           college: true,
-          plan: { include: { modules: { orderBy: { displayOrder: 'asc' } } } },
+          plan: { include: { modules: { orderBy: { displayOrder: "asc" } } } },
           addons: true,
           customItems: true,
           createdBy: { select: { fullName: true, email: true, phone: true } },
           approvedBy: { select: { fullName: true, email: true } },
-          acceptances: { orderBy: { acceptedAt: 'desc' } },
-          approvals: { orderBy: { approvedAt: 'desc' } },
+          acceptances: { orderBy: { acceptedAt: "desc" } },
+          approvals: { orderBy: { approvedAt: "desc" } },
         },
       });
 
       if (!proposal) {
-        res.status(404).json({ success: false, message: 'Proposal not found' });
+        res.status(404).json({ success: false, message: "Proposal not found" });
         return;
       }
 
       // Compute GST values if legacy proposal did not have them
-      const subtotal = proposal.subtotal || (proposal.baseTrainingCost + proposal.addonsTotalCost + proposal.customItemsTotalCost);
+      const subtotal =
+        proposal.subtotal ||
+        proposal.baseTrainingCost +
+          proposal.addonsTotalCost +
+          proposal.customItemsTotalCost;
       let discountAmount = 0;
       if (proposal.discountValue > 0) {
-        if (proposal.discountType === 'PERCENTAGE') {
+        if (proposal.discountType === "PERCENTAGE") {
           discountAmount = (subtotal * proposal.discountValue) / 100;
         } else {
           discountAmount = proposal.discountValue;
         }
       }
-      const taxableAmount = proposal.taxableAmount || Math.max(0, subtotal - discountAmount);
+      const taxableAmount =
+        proposal.taxableAmount || Math.max(0, subtotal - discountAmount);
       const gstRate = proposal.gstRate || 18.0;
-      const gstAmount = proposal.gstAmount || Math.round(((taxableAmount * gstRate) / 100) * 100) / 100;
-      const grandTotal = proposal.grandTotal || (taxableAmount + gstAmount);
+      const gstAmount =
+        proposal.gstAmount ||
+        Math.round(((taxableAmount * gstRate) / 100) * 100) / 100;
+      const grandTotal = proposal.grandTotal || taxableAmount + gstAmount;
 
       let customPrograms: any[] = [];
       if (proposal.customProgramsData) {
@@ -904,20 +1048,20 @@ export class ProposalController {
       }
 
       const customProgramsList = customPrograms.map((cp) => {
-        const pType = cp.pricingType || 'PER_HOUR';
-        const pRate = cp.unitRate !== undefined ? cp.unitRate : (cp.rate || 0);
+        const pType = cp.pricingType || "PER_HOUR";
+        const pRate = cp.unitRate !== undefined ? cp.unitRate : cp.rate || 0;
         const pHours = cp.hours || 0;
         let cost = 0;
-        if (pType === 'PER_STUDENT') {
+        if (pType === "PER_STUDENT") {
           cost = pRate * proposal.studentCount;
-        } else if (pType === 'FIXED') {
+        } else if (pType === "FIXED") {
           cost = pRate;
         } else {
           cost = pHours * proposal.studentCount * pRate;
         }
         return {
           programId: cp.programId,
-          name: cp.name || cp.programName || 'Training Program',
+          name: cp.name || cp.programName || "Training Program",
           code: cp.code,
           hours: pHours,
           pricingType: pType,
@@ -927,13 +1071,19 @@ export class ProposalController {
         };
       });
 
-      const digitalAcceptance = proposal.acceptances && proposal.acceptances.length > 0
-        ? proposal.acceptances.find((a: any) => a.proposalVersion === proposal.currentVersion) || proposal.acceptances[0]
-        : null;
+      const digitalAcceptance =
+        proposal.acceptances && proposal.acceptances.length > 0
+          ? proposal.acceptances.find(
+              (a: any) => a.proposalVersion === proposal.currentVersion,
+            ) || proposal.acceptances[0]
+          : null;
 
-      const digitalApproval = proposal.approvals && proposal.approvals.length > 0
-        ? proposal.approvals.find((a: any) => a.proposalVersion === proposal.currentVersion) || proposal.approvals[0]
-        : null;
+      const digitalApproval =
+        proposal.approvals && proposal.approvals.length > 0
+          ? proposal.approvals.find(
+              (a: any) => a.proposalVersion === proposal.currentVersion,
+            ) || proposal.approvals[0]
+          : null;
 
       const pdfBuffer = await PDFService.generateProposalPdf({
         proposalId: proposal.proposalId,
@@ -957,23 +1107,36 @@ export class ProposalController {
           code: proposal.plan.code,
           description: proposal.plan.description,
           totalHours: proposal.totalHours,
-          modules: customPrograms.length > 0
-            ? customPrograms.map((cp) => ({ name: cp.name || cp.programName, hours: cp.hours }))
-            : proposal.plan.modules.map((m: { name: string; hours: number }) => ({
-                name: m.name,
-                hours: m.hours,
-              })),
+          modules:
+            customPrograms.length > 0
+              ? customPrograms.map((cp) => ({
+                  name: cp.name || cp.programName,
+                  hours: cp.hours,
+                }))
+              : proposal.plan.modules.map(
+                  (m: { name: string; hours: number }) => ({
+                    name: m.name,
+                    hours: m.hours,
+                  }),
+                ),
         },
         studentCount: proposal.studentCount,
         hourlyRate: proposal.hourlyRateSnapshot,
         baseTrainingCost: proposal.baseTrainingCost,
         customPrograms: customProgramsList,
-        addons: proposal.addons.map((a: { nameSnapshot: string; pricingTypeSnapshot: string; priceSnapshot: number; calculatedCost: number }) => ({
-          name: a.nameSnapshot,
-          pricingType: a.pricingTypeSnapshot,
-          price: a.priceSnapshot,
-          calculatedCost: a.calculatedCost,
-        })),
+        addons: proposal.addons.map(
+          (a: {
+            nameSnapshot: string;
+            pricingTypeSnapshot: string;
+            priceSnapshot: number;
+            calculatedCost: number;
+          }) => ({
+            name: a.nameSnapshot,
+            pricingType: a.pricingTypeSnapshot,
+            price: a.priceSnapshot,
+            calculatedCost: a.calculatedCost,
+          }),
+        ),
         addonsTotalCost: proposal.addonsTotalCost,
         customItems: proposal.customItems.map((ci) => ({
           name: ci.name,
@@ -1001,15 +1164,18 @@ export class ProposalController {
 
       await logAuditEvent({
         userId: req.user?.userId,
-        action: 'PDF_GENERATED',
-        entity: 'PROPOSAL',
+        action: "PDF_GENERATED",
+        entity: "PROPOSAL",
         entityId: proposal.id,
         ipAddress: req.ip,
-        userAgent: req.get('user-agent') || undefined,
+        userAgent: req.get("user-agent") || undefined,
       });
 
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="Genesis_Proposal_${proposal.proposalId}.pdf"`);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="Genesis_Proposal_${proposal.proposalId}.pdf"`,
+      );
       res.send(pdfBuffer);
     } catch (err) {
       next(err);
@@ -1019,10 +1185,14 @@ export class ProposalController {
   /**
    * Archive / soft-delete a proposal (BD_MANAGER only)
    */
-  public static async archive(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async archive(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const id = String(req.params.id);
-      const reason = (req.body?.reason as string || '').trim() || undefined;
+      const reason = ((req.body?.reason as string) || "").trim() || undefined;
 
       const proposal = await prisma.proposal.findUnique({
         where: { id },
@@ -1033,12 +1203,14 @@ export class ProposalController {
       });
 
       if (!proposal) {
-        res.status(404).json({ success: false, message: 'Proposal not found' });
+        res.status(404).json({ success: false, message: "Proposal not found" });
         return;
       }
 
-      if (proposal.isDeleted || proposal.status === 'ARCHIVED') {
-        res.status(400).json({ success: false, message: 'Proposal is already archived' });
+      if (proposal.isDeleted || proposal.status === "ARCHIVED") {
+        res
+          .status(400)
+          .json({ success: false, message: "Proposal is already archived" });
         return;
       }
 
@@ -1046,7 +1218,7 @@ export class ProposalController {
         where: { id },
         data: {
           isDeleted: true,
-          status: 'ARCHIVED',
+          status: "ARCHIVED",
           deletedAt: new Date(),
           deletedById: req.user?.id || null,
           archiveReason: reason || null,
@@ -1060,13 +1232,13 @@ export class ProposalController {
 
       await logAuditEvent({
         userId: req.user?.id,
-        action: 'PROPOSAL_ARCHIVED',
-        entity: 'PROPOSAL',
+        action: "PROPOSAL_ARCHIVED",
+        entity: "PROPOSAL",
         entityId: proposal.id,
         oldValue: { status: proposal.status, isDeleted: proposal.isDeleted },
-        newValue: { status: 'ARCHIVED', isDeleted: true, reason },
+        newValue: { status: "ARCHIVED", isDeleted: true, reason },
         ipAddress: req.ip,
-        userAgent: req.get('user-agent') || undefined,
+        userAgent: req.get("user-agent") || undefined,
       });
 
       // Targeted notification ONLY to creator BD executive
@@ -1076,13 +1248,13 @@ export class ProposalController {
           proposal.college.name,
           proposal.createdById,
           reason,
-          proposal.id
+          proposal.id,
         );
       }
 
       res.status(200).json({
         success: true,
-        message: 'Proposal archived successfully',
+        message: "Proposal archived successfully",
         data: updated,
       });
     } catch (err) {

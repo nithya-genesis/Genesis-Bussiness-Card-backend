@@ -1,19 +1,23 @@
-import crypto from 'crypto';
-import { Request, Response, NextFunction } from 'express';
-import { prisma } from '../models/prisma.js';
-import { collegeModifyProposalSchema } from '../validators/index.js';
-import { calculateProposalPricing } from '../services/pricingEngine.js';
-import { logAuditEvent } from '../services/auditService.js';
-import { NotificationService } from '../services/notificationService.js';
-import { PDFService } from '../pdf/pdfService.js';
-import { formatINR } from '../utils/currency.js';
-import { generateAcceptanceId } from '../utils/idGenerator.js';
+import crypto from "crypto";
+import { Request, Response, NextFunction } from "express";
+import { prisma } from "../models/prisma.js";
+import { collegeModifyProposalSchema } from "../validators/index.js";
+import { calculateProposalPricing } from "../services/pricingEngine.js";
+import { logAuditEvent } from "../services/auditService.js";
+import { NotificationService } from "../services/notificationService.js";
+import { PDFService } from "../pdf/pdfService.js";
+import { formatINR } from "../utils/currency.js";
+import { generateAcceptanceId } from "../utils/idGenerator.js";
 
 export class PublicProposalController {
   /**
    * Resolves a public proposal by its cryptographic token
    */
-  public static async getByToken(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async getByToken(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const token = String(req.params.token);
 
@@ -41,7 +45,7 @@ export class PublicProposalController {
               totalHours: true,
               modules: {
                 select: { name: true, hours: true, displayOrder: true },
-                orderBy: { displayOrder: 'asc' },
+                orderBy: { displayOrder: "asc" },
               },
             },
           },
@@ -58,55 +62,55 @@ export class PublicProposalController {
             select: { fullName: true, email: true, phone: true, role: true },
           },
           acceptances: {
-            orderBy: { acceptedAt: 'desc' },
+            orderBy: { acceptedAt: "desc" },
           },
           approvals: {
-            orderBy: { approvedAt: 'desc' },
+            orderBy: { approvedAt: "desc" },
           },
         },
       });
 
-      if (!proposal || proposal.isDeleted || proposal.status === 'ARCHIVED') {
+      if (!proposal || proposal.isDeleted || proposal.status === "ARCHIVED") {
         res.status(404).json({
           success: false,
-          message: 'Proposal Unavailable. This proposal is no longer active.',
-          code: 'PROPOSAL_UNAVAILABLE',
+          message: "Proposal Unavailable. This proposal is no longer active.",
+          code: "PROPOSAL_UNAVAILABLE",
         });
         return;
       }
 
       // Check Expiration
       const isExpired = new Date() > new Date(proposal.tokenExpiresAt);
-      if (isExpired && proposal.status !== 'APPROVED') {
-        if (proposal.status !== 'EXPIRED') {
+      if (isExpired && proposal.status !== "APPROVED") {
+        if (proposal.status !== "EXPIRED") {
           await prisma.proposal.update({
             where: { id: proposal.id },
-            data: { status: 'EXPIRED' },
+            data: { status: "EXPIRED" },
           });
         }
       }
 
       // Track VIEWED transition
-      if (proposal.status === 'SHARED' || proposal.status === 'DRAFT') {
+      if (proposal.status === "SHARED" || proposal.status === "DRAFT") {
         await prisma.proposal.update({
           where: { id: proposal.id },
-          data: { status: 'VIEWED' },
+          data: { status: "VIEWED" },
         });
 
         await logAuditEvent({
           userId: null,
-          action: 'PROPOSAL_VIEWED',
-          entity: 'PROPOSAL',
+          action: "PROPOSAL_VIEWED",
+          entity: "PROPOSAL",
           entityId: proposal.id,
           newValue: { viewedAt: new Date() },
           ipAddress: req.ip,
-          userAgent: req.get('user-agent') || undefined,
+          userAgent: req.get("user-agent") || undefined,
         });
       }
 
       // Fetch all available active add-ons so the college can toggle additions
       const availableAddons = await prisma.addon.findMany({
-        where: { status: 'ACTIVE' },
+        where: { status: "ACTIVE" },
         select: {
           id: true,
           name: true,
@@ -115,25 +119,41 @@ export class PublicProposalController {
           pricingType: true,
           price: true,
         },
-        orderBy: { name: 'asc' },
+        orderBy: { name: "asc" },
       });
 
-      const subtotal = proposal.subtotal || (proposal.baseTrainingCost + proposal.addonsTotalCost + proposal.customItemsTotalCost);
+      const subtotal =
+        proposal.subtotal ||
+        proposal.baseTrainingCost +
+          proposal.addonsTotalCost +
+          proposal.customItemsTotalCost;
       let discountAmount = 0;
       if (proposal.discountValue > 0) {
-        if (proposal.discountType === 'PERCENTAGE') {
+        if (proposal.discountType === "PERCENTAGE") {
           discountAmount = (subtotal * proposal.discountValue) / 100;
         } else {
           discountAmount = proposal.discountValue;
         }
       }
-      const taxableAmount = proposal.taxableAmount || Math.max(0, subtotal - discountAmount);
-      const costPerStudentBeforeGst = proposal.studentCount > 0 ? Math.round((taxableAmount / proposal.studentCount) * 100) / 100 : 0;
+      const taxableAmount =
+        proposal.taxableAmount || Math.max(0, subtotal - discountAmount);
+      const costPerStudentBeforeGst =
+        proposal.studentCount > 0
+          ? Math.round((taxableAmount / proposal.studentCount) * 100) / 100
+          : 0;
       const gstRate = proposal.gstRate || 18.0;
-      const gstAmount = proposal.gstAmount || Math.round(((taxableAmount * gstRate) / 100) * 100) / 100;
-      const gstPerStudent = proposal.studentCount > 0 ? Math.round((gstAmount / proposal.studentCount) * 100) / 100 : 0;
-      const grandTotal = proposal.grandTotal || (taxableAmount + gstAmount);
-      const finalCostPerStudent = proposal.studentCount > 0 ? Math.round((grandTotal / proposal.studentCount) * 100) / 100 : 0;
+      const gstAmount =
+        proposal.gstAmount ||
+        Math.round(((taxableAmount * gstRate) / 100) * 100) / 100;
+      const gstPerStudent =
+        proposal.studentCount > 0
+          ? Math.round((gstAmount / proposal.studentCount) * 100) / 100
+          : 0;
+      const grandTotal = proposal.grandTotal || taxableAmount + gstAmount;
+      const finalCostPerStudent =
+        proposal.studentCount > 0
+          ? Math.round((grandTotal / proposal.studentCount) * 100) / 100
+          : 0;
 
       // Parse custom programs data if present
       let customPrograms = undefined;
@@ -150,13 +170,19 @@ export class PublicProposalController {
         where: { proposalId: proposal.id },
       });
 
-      const digitalAcceptance = proposal.acceptances && proposal.acceptances.length > 0
-        ? proposal.acceptances.find((a: any) => a.proposalVersion === proposal.currentVersion) || proposal.acceptances[0]
-        : null;
+      const digitalAcceptance =
+        proposal.acceptances && proposal.acceptances.length > 0
+          ? proposal.acceptances.find(
+              (a: any) => a.proposalVersion === proposal.currentVersion,
+            ) || proposal.acceptances[0]
+          : null;
 
-      const digitalApproval = proposal.approvals && proposal.approvals.length > 0
-        ? proposal.approvals.find((a: any) => a.proposalVersion === proposal.currentVersion) || proposal.approvals[0]
-        : null;
+      const digitalApproval =
+        proposal.approvals && proposal.approvals.length > 0
+          ? proposal.approvals.find(
+              (a: any) => a.proposalVersion === proposal.currentVersion,
+            ) || proposal.approvals[0]
+          : null;
 
       res.status(200).json({
         success: true,
@@ -209,7 +235,11 @@ export class PublicProposalController {
   /**
    * Allows college to modify only permitted parameters (studentCount within bounds, selectedAddons)
    */
-  public static async modify(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async modify(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const token = String(req.params.token);
       const validated = collegeModifyProposalSchema.parse(req.body);
@@ -224,16 +254,20 @@ export class PublicProposalController {
         },
       });
 
-      if (!proposal || proposal.isDeleted || proposal.status === 'ARCHIVED') {
-        res.status(404).json({ success: false, message: 'Proposal Unavailable. This proposal is no longer active.' });
+      if (!proposal || proposal.isDeleted || proposal.status === "ARCHIVED") {
+        res.status(404).json({
+          success: false,
+          message: "Proposal Unavailable. This proposal is no longer active.",
+        });
         return;
       }
 
-      if (proposal.status === 'APPROVED') {
+      if (proposal.status === "APPROVED") {
         res.status(400).json({
           success: false,
-          message: 'This proposal has already been finalized and approved. No further modifications are permitted.',
-          code: 'PROPOSAL_FINALIZED',
+          message:
+            "This proposal has already been finalized and approved. No further modifications are permitted.",
+          code: "PROPOSAL_FINALIZED",
         });
         return;
       }
@@ -241,8 +275,9 @@ export class PublicProposalController {
       if (new Date() > new Date(proposal.tokenExpiresAt)) {
         res.status(400).json({
           success: false,
-          message: 'This proposal link has expired. Please contact your Genesis BD representative for a renewal.',
-          code: 'PROPOSAL_EXPIRED',
+          message:
+            "This proposal link has expired. Please contact your Genesis BD representative for a renewal.",
+          code: "PROPOSAL_EXPIRED",
         });
         return;
       }
@@ -252,7 +287,7 @@ export class PublicProposalController {
         res.status(400).json({
           success: false,
           message: `Student count cannot be lower than the agreed minimum of ${proposal.minStudents} students.`,
-          code: 'MIN_STUDENTS_VIOLATION',
+          code: "MIN_STUDENTS_VIOLATION",
         });
         return;
       }
@@ -261,7 +296,7 @@ export class PublicProposalController {
         res.status(400).json({
           success: false,
           message: `Student count cannot exceed maximum batch limit of ${proposal.maxStudents} students.`,
-          code: 'MAX_STUDENTS_VIOLATION',
+          code: "MAX_STUDENTS_VIOLATION",
         });
         return;
       }
@@ -276,26 +311,44 @@ export class PublicProposalController {
         }
       }
 
-      if (customPrograms && Array.isArray(customPrograms) && customPrograms.length > 0) {
-        if (validated.customPrograms && Array.isArray(validated.customPrograms)) {
+      if (
+        customPrograms &&
+        Array.isArray(customPrograms) &&
+        customPrograms.length > 0
+      ) {
+        if (
+          validated.customPrograms &&
+          Array.isArray(validated.customPrograms)
+        ) {
           customPrograms = customPrograms.map((ep: any) => {
-            const match = validated.customPrograms!.find((vp: any) =>
-              (vp.programId && vp.programId === ep.programId) ||
-              (vp.id && (vp.id === ep.programId || vp.id === ep.id)) ||
-              (vp.name && vp.name === ep.name) ||
-              (vp.programName && vp.programName === ep.name)
+            const match = validated.customPrograms!.find(
+              (vp: any) =>
+                (vp.programId && vp.programId === ep.programId) ||
+                (vp.id && (vp.id === ep.programId || vp.id === ep.id)) ||
+                (vp.name && vp.name === ep.name) ||
+                (vp.programName && vp.programName === ep.name),
             );
-            if (match && typeof match.hours === 'number' && match.hours > 0) {
+            if (match && typeof match.hours === "number" && match.hours > 0) {
               // Rate is strictly LOCKED to proposal snapshot
               return { ...ep, hours: Number(match.hours) };
             }
             return ep;
           });
-        } else if (validated.customProgramHours && typeof validated.customProgramHours === 'object') {
+        } else if (
+          validated.customProgramHours &&
+          typeof validated.customProgramHours === "object"
+        ) {
           customPrograms = customPrograms.map((ep: any) => {
             const key = ep.programId || ep.id || ep.name;
-            const newHours = (validated.customProgramHours as any)[key] ?? (ep.programId ? (validated.customProgramHours as any)[ep.programId] : undefined) ?? (ep.name ? (validated.customProgramHours as any)[ep.name] : undefined);
-            if (typeof newHours === 'number' && newHours > 0) {
+            const newHours =
+              (validated.customProgramHours as any)[key] ??
+              (ep.programId
+                ? (validated.customProgramHours as any)[ep.programId]
+                : undefined) ??
+              (ep.name
+                ? (validated.customProgramHours as any)[ep.name]
+                : undefined);
+            if (typeof newHours === "number" && newHours > 0) {
               return { ...ep, hours: Number(newHours) };
             }
             return ep;
@@ -323,7 +376,9 @@ export class PublicProposalController {
       });
 
       // Update addons
-      await prisma.proposalAddon.deleteMany({ where: { proposalId: proposal.id } });
+      await prisma.proposalAddon.deleteMany({
+        where: { proposalId: proposal.id },
+      });
       await prisma.proposalAddon.createMany({
         data: calculated.addons.map((a) => ({
           proposalId: proposal.id,
@@ -337,7 +392,9 @@ export class PublicProposalController {
 
       // Update custom items
       if (calculated.customItems && calculated.customItems.length > 0) {
-        await prisma.proposalCustomItem.deleteMany({ where: { proposalId: proposal.id } });
+        await prisma.proposalCustomItem.deleteMany({
+          where: { proposalId: proposal.id },
+        });
         await prisma.proposalCustomItem.createMany({
           data: calculated.customItems.map((ci) => ({
             proposalId: proposal.id,
@@ -352,16 +409,20 @@ export class PublicProposalController {
       }
 
       const nextVersion = proposal.currentVersion + 1;
-      const nextStatus = proposal.status === 'PENDING_MANAGER_APPROVAL' || proposal.status === 'SUBMITTED'
-        ? proposal.status
-        : 'COLLEGE_MODIFIED';
+      const nextStatus =
+        proposal.status === "PENDING_MANAGER_APPROVAL" ||
+        proposal.status === "SUBMITTED"
+          ? proposal.status
+          : "COLLEGE_MODIFIED";
 
       const updated = await prisma.proposal.update({
         where: { id: proposal.id },
         data: {
           studentCount: validated.studentCount,
           totalHours: calculated.totalHours,
-          customProgramsData: customPrograms ? JSON.stringify(customPrograms) : undefined,
+          customProgramsData: customPrograms
+            ? JSON.stringify(customPrograms)
+            : undefined,
           baseTrainingCost: calculated.baseTrainingCost,
           addonsTotalCost: calculated.addonsTotalCost,
           customItemsTotalCost: calculated.customItemsTotalCost,
@@ -388,7 +449,7 @@ export class PublicProposalController {
           proposalId: proposal.id,
           versionNumber: nextVersion,
           snapshotData: JSON.stringify(updated),
-          changedByRole: 'COLLEGE',
+          changedByRole: "COLLEGE",
           changeSummary: `College adjusted sizing (${validated.studentCount} students, ${calculated.totalHours} hrs) & options. Recalculated Grand Total: ${formatINR(calculated.grandTotal)}`,
           calculatedTotal: calculated.grandTotal,
         },
@@ -396,18 +457,26 @@ export class PublicProposalController {
 
       await logAuditEvent({
         userId: null,
-        action: 'COLLEGE_MODIFIED',
-        entity: 'PROPOSAL',
+        action: "COLLEGE_MODIFIED",
+        entity: "PROPOSAL",
         entityId: proposal.id,
-        oldValue: { studentCount: proposal.studentCount, grandTotal: proposal.grandTotal || proposal.finalTotal },
-        newValue: { studentCount: updated.studentCount, grandTotal: updated.grandTotal, version: nextVersion },
+        oldValue: {
+          studentCount: proposal.studentCount,
+          grandTotal: proposal.grandTotal || proposal.finalTotal,
+        },
+        newValue: {
+          studentCount: updated.studentCount,
+          grandTotal: updated.grandTotal,
+          version: nextVersion,
+        },
         ipAddress: req.ip,
-        userAgent: req.get('user-agent') || undefined,
+        userAgent: req.get("user-agent") || undefined,
       });
 
       res.status(200).json({
         success: true,
-        message: 'Proposal successfully updated with server-calculated pricing and GST',
+        message:
+          "Proposal successfully updated with server-calculated pricing and GST",
         data: {
           studentCount: updated.studentCount,
           baseTrainingCost: updated.baseTrainingCost,
@@ -436,7 +505,11 @@ export class PublicProposalController {
   /**
    * Final submission by college -> sets PENDING_MANAGER_APPROVAL and creates manager notification
    */
-  public static async submit(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async submit(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const token = String(req.params.token);
       const { collegeNotes } = req.body || {};
@@ -446,18 +519,25 @@ export class PublicProposalController {
         include: { college: true, plan: true },
       });
 
-      if (!proposal || proposal.isDeleted || proposal.status === 'ARCHIVED') {
-        res.status(404).json({ success: false, message: 'Proposal Unavailable. This proposal is no longer active.' });
+      if (!proposal || proposal.isDeleted || proposal.status === "ARCHIVED") {
+        res.status(404).json({
+          success: false,
+          message: "Proposal Unavailable. This proposal is no longer active.",
+        });
         return;
       }
 
-      if (proposal.status === 'APPROVED') {
-        res.status(400).json({ success: false, message: 'Proposal already approved' });
+      if (proposal.status === "APPROVED") {
+        res
+          .status(400)
+          .json({ success: false, message: "Proposal already approved" });
         return;
       }
 
       if (new Date() > new Date(proposal.tokenExpiresAt)) {
-        res.status(400).json({ success: false, message: 'Proposal link has expired' });
+        res
+          .status(400)
+          .json({ success: false, message: "Proposal link has expired" });
         return;
       }
 
@@ -466,7 +546,7 @@ export class PublicProposalController {
       const updated = await prisma.proposal.update({
         where: { id: proposal.id },
         data: {
-          status: 'PENDING_MANAGER_APPROVAL',
+          status: "PENDING_MANAGER_APPROVAL",
           submittedAt: new Date(),
           collegeNotes: collegeNotes || proposal.collegeNotes,
           currentVersion: nextVersion,
@@ -479,7 +559,7 @@ export class PublicProposalController {
           proposalId: proposal.id,
           versionNumber: nextVersion,
           snapshotData: JSON.stringify(updated),
-          changedByRole: 'COLLEGE',
+          changedByRole: "COLLEGE",
           changeSummary: `College confirmed sizing & submitted proposal for Manager sign-off (${updated.studentCount} students, Grand Total: ${formatINR(updated.grandTotal)})`,
           calculatedTotal: updated.grandTotal,
         },
@@ -505,14 +585,18 @@ export class PublicProposalController {
           grandTotal: updated.grandTotal,
           timestamp: new Date().toISOString(),
         });
-        const documentHash = crypto.createHash('sha256').update(integrityPayload).digest('hex');
+        const documentHash = crypto
+          .createHash("sha256")
+          .update(integrityPayload)
+          .digest("hex");
 
         digitalAcceptance = await prisma.digitalAcceptance.create({
           data: {
             acceptanceId,
             proposalId: proposal.id,
             proposalVersion: nextVersion,
-            acceptedByName: proposal.college.placementOfficerName || proposal.college.name,
+            acceptedByName:
+              proposal.college.placementOfficerName || proposal.college.name,
             acceptedByEmail: proposal.college.placementOfficerEmail || null,
             studentCount: updated.studentCount,
             taxableAmount: updated.taxableAmount,
@@ -521,15 +605,15 @@ export class PublicProposalController {
             documentHash,
             snapshotData: JSON.stringify(updated),
             ipAddress: req.ip || null,
-            userAgent: req.get('user-agent') || null,
+            userAgent: req.get("user-agent") || null,
           },
         });
       }
 
       await logAuditEvent({
         userId: null,
-        action: 'PROPOSAL_DIGITALLY_ACCEPTED',
-        entity: 'PROPOSAL',
+        action: "PROPOSAL_DIGITALLY_ACCEPTED",
+        entity: "PROPOSAL",
         entityId: proposal.id,
         newValue: {
           acceptanceId: digitalAcceptance.acceptanceId,
@@ -539,17 +623,20 @@ export class PublicProposalController {
           documentHash: digitalAcceptance.documentHash,
         },
         ipAddress: req.ip,
-        userAgent: req.get('user-agent') || undefined,
+        userAgent: req.get("user-agent") || undefined,
       });
 
       await logAuditEvent({
         userId: null,
-        action: 'PROPOSAL_SUBMITTED',
-        entity: 'PROPOSAL',
+        action: "PROPOSAL_SUBMITTED",
+        entity: "PROPOSAL",
         entityId: proposal.id,
-        newValue: { submittedAt: updated.submittedAt, grandTotal: updated.grandTotal || updated.finalTotal },
+        newValue: {
+          submittedAt: updated.submittedAt,
+          grandTotal: updated.grandTotal || updated.finalTotal,
+        },
         ipAddress: req.ip,
-        userAgent: req.get('user-agent') || undefined,
+        userAgent: req.get("user-agent") || undefined,
       });
 
       await NotificationService.notifyProposalSubmitted(
@@ -558,22 +645,26 @@ export class PublicProposalController {
         updated.studentCount,
         updated.plan.name,
         formatINR(updated.grandTotal || updated.finalTotal),
-        updated.id
+        updated.id,
       );
 
       await logAuditEvent({
         userId: null,
-        action: 'MANAGER_NOTIFIED',
-        entity: 'PROPOSAL',
+        action: "MANAGER_NOTIFIED",
+        entity: "PROPOSAL",
         entityId: proposal.id,
-        newValue: { proposalId: updated.proposalId, college: updated.college.name },
+        newValue: {
+          proposalId: updated.proposalId,
+          college: updated.college.name,
+        },
         ipAddress: req.ip,
-        userAgent: req.get('user-agent') || undefined,
+        userAgent: req.get("user-agent") || undefined,
       });
 
       res.status(200).json({
         success: true,
-        message: 'Proposal submitted successfully. Your proposal has been sent to the Genesis team for final approval.',
+        message:
+          "Proposal submitted successfully. Your proposal has been sent to the Genesis team for final approval.",
         data: {
           proposalId: updated.proposalId,
           status: updated.status,
@@ -589,27 +680,36 @@ export class PublicProposalController {
   /**
    * College requests changes on proposal -> status transitions to COLLEGE_MODIFIED, creator BD executive notified
    */
-  public static async requestChanges(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async requestChanges(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const token = String(req.params.token);
       const { reason, notes } = req.body || {};
-      const changeReason = (reason || notes || '').trim() || 'College requested revisions';
+      const changeReason =
+        (reason || notes || "").trim() || "College requested revisions";
 
       const proposal = await prisma.proposal.findUnique({
         where: { publicToken: token },
         include: { college: true, plan: true, createdBy: true },
       });
 
-      if (!proposal || proposal.isDeleted || proposal.status === 'ARCHIVED') {
-        res.status(404).json({ success: false, message: 'Proposal Unavailable. This proposal is no longer active.' });
+      if (!proposal || proposal.isDeleted || proposal.status === "ARCHIVED") {
+        res.status(404).json({
+          success: false,
+          message: "Proposal Unavailable. This proposal is no longer active.",
+        });
         return;
       }
 
-      if (proposal.status === 'APPROVED') {
+      if (proposal.status === "APPROVED") {
         res.status(400).json({
           success: false,
-          message: 'Approved proposals cannot be modified. Please contact your Genesis BD representative.',
-          code: 'PROPOSAL_LOCKED',
+          message:
+            "Approved proposals cannot be modified. Please contact your Genesis BD representative.",
+          code: "PROPOSAL_LOCKED",
         });
         return;
       }
@@ -619,7 +719,7 @@ export class PublicProposalController {
       const updated = await prisma.proposal.update({
         where: { id: proposal.id },
         data: {
-          status: 'COLLEGE_MODIFIED',
+          status: "COLLEGE_MODIFIED",
           collegeNotes: changeReason,
           currentVersion: nextVersion,
         },
@@ -631,7 +731,7 @@ export class PublicProposalController {
           proposalId: proposal.id,
           versionNumber: nextVersion,
           snapshotData: JSON.stringify(updated),
-          changedByRole: 'COLLEGE',
+          changedByRole: "COLLEGE",
           changeSummary: `College requested adjustments: "${changeReason}"`,
           calculatedTotal: updated.grandTotal || updated.finalTotal,
         },
@@ -639,12 +739,16 @@ export class PublicProposalController {
 
       await logAuditEvent({
         userId: null,
-        action: 'COLLEGE_REQUESTED_CHANGES',
-        entity: 'PROPOSAL',
+        action: "COLLEGE_REQUESTED_CHANGES",
+        entity: "PROPOSAL",
         entityId: proposal.id,
-        newValue: { reason: changeReason, status: 'COLLEGE_MODIFIED', version: nextVersion },
+        newValue: {
+          reason: changeReason,
+          status: "COLLEGE_MODIFIED",
+          version: nextVersion,
+        },
         ipAddress: req.ip,
-        userAgent: req.get('user-agent') || undefined,
+        userAgent: req.get("user-agent") || undefined,
       });
 
       // Targeted notification ONLY to creator BD executive
@@ -653,12 +757,13 @@ export class PublicProposalController {
         updated.college.name,
         proposal.createdById,
         changeReason,
-        updated.id
+        updated.id,
       );
 
       res.status(200).json({
         success: true,
-        message: 'Your revision request has been submitted to the Genesis BD representative.',
+        message:
+          "Your revision request has been submitted to the Genesis BD representative.",
         data: {
           proposalId: updated.proposalId,
           status: updated.status,
@@ -670,41 +775,55 @@ export class PublicProposalController {
     }
   }
 
-  public static async downloadPdf(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public static async downloadPdf(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const token = String(req.params.token);
       const proposal = await prisma.proposal.findUnique({
         where: { publicToken: token },
         include: {
           college: true,
-          plan: { include: { modules: { orderBy: { displayOrder: 'asc' } } } },
+          plan: { include: { modules: { orderBy: { displayOrder: "asc" } } } },
           addons: true,
           customItems: true,
           createdBy: { select: { fullName: true, email: true, phone: true } },
           approvedBy: { select: { fullName: true, email: true } },
-          acceptances: { orderBy: { acceptedAt: 'desc' } },
-          approvals: { orderBy: { approvedAt: 'desc' } },
+          acceptances: { orderBy: { acceptedAt: "desc" } },
+          approvals: { orderBy: { approvedAt: "desc" } },
         },
       });
 
-      if (!proposal || proposal.isDeleted || proposal.status === 'ARCHIVED') {
-        res.status(404).json({ success: false, message: 'Proposal Unavailable. This proposal is no longer active.' });
+      if (!proposal || proposal.isDeleted || proposal.status === "ARCHIVED") {
+        res.status(404).json({
+          success: false,
+          message: "Proposal Unavailable. This proposal is no longer active.",
+        });
         return;
       }
 
-      const subtotal = proposal.subtotal || (proposal.baseTrainingCost + proposal.addonsTotalCost + proposal.customItemsTotalCost);
+      const subtotal =
+        proposal.subtotal ||
+        proposal.baseTrainingCost +
+          proposal.addonsTotalCost +
+          proposal.customItemsTotalCost;
       let discountAmount = 0;
       if (proposal.discountValue > 0) {
-        if (proposal.discountType === 'PERCENTAGE') {
+        if (proposal.discountType === "PERCENTAGE") {
           discountAmount = (subtotal * proposal.discountValue) / 100;
         } else {
           discountAmount = proposal.discountValue;
         }
       }
-      const taxableAmount = proposal.taxableAmount || Math.max(0, subtotal - discountAmount);
+      const taxableAmount =
+        proposal.taxableAmount || Math.max(0, subtotal - discountAmount);
       const gstRate = proposal.gstRate || 18.0;
-      const gstAmount = proposal.gstAmount || Math.round(((taxableAmount * gstRate) / 100) * 100) / 100;
-      const grandTotal = proposal.grandTotal || (taxableAmount + gstAmount);
+      const gstAmount =
+        proposal.gstAmount ||
+        Math.round(((taxableAmount * gstRate) / 100) * 100) / 100;
+      const grandTotal = proposal.grandTotal || taxableAmount + gstAmount;
 
       let customPrograms: any[] = [];
       if (proposal.customProgramsData) {
@@ -716,20 +835,20 @@ export class PublicProposalController {
       }
 
       const customProgramsList = customPrograms.map((cp) => {
-        const pType = cp.pricingType || 'PER_HOUR';
-        const pRate = cp.unitRate !== undefined ? cp.unitRate : (cp.rate || 0);
+        const pType = cp.pricingType || "PER_HOUR";
+        const pRate = cp.unitRate !== undefined ? cp.unitRate : cp.rate || 0;
         const pHours = cp.hours || 0;
         let cost = 0;
-        if (pType === 'PER_STUDENT') {
+        if (pType === "PER_STUDENT") {
           cost = pRate * proposal.studentCount;
-        } else if (pType === 'FIXED') {
+        } else if (pType === "FIXED") {
           cost = pRate;
         } else {
           cost = pHours * proposal.studentCount * pRate;
         }
         return {
           programId: cp.programId,
-          name: cp.name || cp.programName || 'Training Program',
+          name: cp.name || cp.programName || "Training Program",
           code: cp.code,
           hours: pHours,
           pricingType: pType,
@@ -739,13 +858,19 @@ export class PublicProposalController {
         };
       });
 
-      const digitalAcceptance = proposal.acceptances && proposal.acceptances.length > 0
-        ? proposal.acceptances.find((a: any) => a.proposalVersion === proposal.currentVersion) || proposal.acceptances[0]
-        : null;
+      const digitalAcceptance =
+        proposal.acceptances && proposal.acceptances.length > 0
+          ? proposal.acceptances.find(
+              (a: any) => a.proposalVersion === proposal.currentVersion,
+            ) || proposal.acceptances[0]
+          : null;
 
-      const digitalApproval = proposal.approvals && proposal.approvals.length > 0
-        ? proposal.approvals.find((a: any) => a.proposalVersion === proposal.currentVersion) || proposal.approvals[0]
-        : null;
+      const digitalApproval =
+        proposal.approvals && proposal.approvals.length > 0
+          ? proposal.approvals.find(
+              (a: any) => a.proposalVersion === proposal.currentVersion,
+            ) || proposal.approvals[0]
+          : null;
 
       const pdfBuffer = await PDFService.generateProposalPdf({
         proposalId: proposal.proposalId,
@@ -769,23 +894,36 @@ export class PublicProposalController {
           code: proposal.plan.code,
           description: proposal.plan.description,
           totalHours: proposal.totalHours,
-          modules: customPrograms.length > 0
-            ? customPrograms.map((cp) => ({ name: cp.name || cp.programName, hours: cp.hours }))
-            : proposal.plan.modules.map((m: { name: string; hours: number }) => ({
-                name: m.name,
-                hours: m.hours,
-              })),
+          modules:
+            customPrograms.length > 0
+              ? customPrograms.map((cp) => ({
+                  name: cp.name || cp.programName,
+                  hours: cp.hours,
+                }))
+              : proposal.plan.modules.map(
+                  (m: { name: string; hours: number }) => ({
+                    name: m.name,
+                    hours: m.hours,
+                  }),
+                ),
         },
         studentCount: proposal.studentCount,
         hourlyRate: proposal.hourlyRateSnapshot,
         baseTrainingCost: proposal.baseTrainingCost,
         customPrograms: customProgramsList,
-        addons: proposal.addons.map((a: { nameSnapshot: string; pricingTypeSnapshot: string; priceSnapshot: number; calculatedCost: number }) => ({
-          name: a.nameSnapshot,
-          pricingType: a.pricingTypeSnapshot,
-          price: a.priceSnapshot,
-          calculatedCost: a.calculatedCost,
-        })),
+        addons: proposal.addons.map(
+          (a: {
+            nameSnapshot: string;
+            pricingTypeSnapshot: string;
+            priceSnapshot: number;
+            calculatedCost: number;
+          }) => ({
+            name: a.nameSnapshot,
+            pricingType: a.pricingTypeSnapshot,
+            price: a.priceSnapshot,
+            calculatedCost: a.calculatedCost,
+          }),
+        ),
         addonsTotalCost: proposal.addonsTotalCost,
         customItems: proposal.customItems.map((ci) => ({
           name: ci.name,
@@ -811,8 +949,11 @@ export class PublicProposalController {
         digitalApproval,
       });
 
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="Genesis_Proposal_${proposal.proposalId}.pdf"`);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="Genesis_Proposal_${proposal.proposalId}.pdf"`,
+      );
       res.send(pdfBuffer);
     } catch (err) {
       next(err);

@@ -48,6 +48,7 @@ export async function generateProposalId(): Promise<string> {
 
   return candidate;
 }
+<<<<<<< HEAD
 
 /**
  * Generates sequential, year-coded unique IDs for Digital Acceptances (e.g. GEN-ACC-2026-000001)
@@ -96,3 +97,5 @@ export async function generateApprovalId(): Promise<string> {
 
   return candidate;
 }
+=======
+>>>>>>> cef96a3d83d1db297ab7d83dbc48602b02909784

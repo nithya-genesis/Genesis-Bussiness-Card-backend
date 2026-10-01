@@ -99,9 +99,15 @@ export const customProgramInputSchema = z.object({
   programName: z.string().optional(),
   name: z.string().optional(),
   code: z.string().optional(),
+<<<<<<< HEAD
   hours: z.coerce.number().min(0).optional(),
   pricingType: z.enum(['PER_STUDENT', 'PER_HOUR', 'FIXED']).optional(),
   rate: z.coerce.number().min(0).optional(),
+=======
+  hours: z.coerce.number().min(0).default(0),
+  pricingType: z.enum(['PER_STUDENT', 'PER_HOUR', 'FIXED']).optional().default('PER_HOUR'),
+  rate: z.coerce.number().min(0).optional().default(40),
+>>>>>>> cef96a3d83d1db297ab7d83dbc48602b02909784
   unitRate: z.coerce.number().min(0).optional(),
 });
 
@@ -154,8 +160,11 @@ export const updateProposalSchema = createProposalSchema.partial().extend({
 export const collegeModifyProposalSchema = z.object({
   studentCount: z.coerce.number().int().min(1, 'Student count must be at least 1'),
   selectedAddonIds: z.array(z.string()).optional().default([]),
+<<<<<<< HEAD
   customPrograms: z.array(z.any()).optional(),
   customProgramHours: z.record(z.string(), z.coerce.number().int().min(1)).optional(),
+=======
+>>>>>>> cef96a3d83d1db297ab7d83dbc48602b02909784
   collegeNotes: z.string().optional(),
 });
 
