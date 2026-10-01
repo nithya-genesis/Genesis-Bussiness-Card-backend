@@ -1,4 +1,4 @@
-import { prisma } from '../models/prisma.js';
+import { prisma } from "../models/prisma.js";
 
 /**
  * Generates sequential, year-coded unique IDs for Colleges (e.g. GEN-COL-2026-00001)
@@ -9,16 +9,20 @@ export async function generateCollegeId(): Promise<string> {
 
   const count = await prisma.college.count();
   const nextNumber = count + 1;
-  const padded = String(nextNumber).padStart(5, '0');
+  const padded = String(nextNumber).padStart(5, "0");
 
   let candidate = `${prefix}-${padded}`;
   // Ensure uniqueness in case of race/deletion
-  let exists = await prisma.college.findUnique({ where: { collegeId: candidate } });
+  let exists = await prisma.college.findUnique({
+    where: { collegeId: candidate },
+  });
   let offset = 1;
   while (exists) {
-    const nextOffsetPadded = String(nextNumber + offset).padStart(5, '0');
+    const nextOffsetPadded = String(nextNumber + offset).padStart(5, "0");
     candidate = `${prefix}-${nextOffsetPadded}`;
-    exists = await prisma.college.findUnique({ where: { collegeId: candidate } });
+    exists = await prisma.college.findUnique({
+      where: { collegeId: candidate },
+    });
     offset++;
   }
 
@@ -34,21 +38,24 @@ export async function generateProposalId(): Promise<string> {
 
   const count = await prisma.proposal.count();
   const nextNumber = count + 1;
-  const padded = String(nextNumber).padStart(5, '0');
+  const padded = String(nextNumber).padStart(5, "0");
 
   let candidate = `${prefix}-${padded}`;
-  let exists = await prisma.proposal.findUnique({ where: { proposalId: candidate } });
+  let exists = await prisma.proposal.findUnique({
+    where: { proposalId: candidate },
+  });
   let offset = 1;
   while (exists) {
-    const nextOffsetPadded = String(nextNumber + offset).padStart(5, '0');
+    const nextOffsetPadded = String(nextNumber + offset).padStart(5, "0");
     candidate = `${prefix}-${nextOffsetPadded}`;
-    exists = await prisma.proposal.findUnique({ where: { proposalId: candidate } });
+    exists = await prisma.proposal.findUnique({
+      where: { proposalId: candidate },
+    });
     offset++;
   }
 
   return candidate;
 }
-<<<<<<< HEAD
 
 /**
  * Generates sequential, year-coded unique IDs for Digital Acceptances (e.g. GEN-ACC-2026-000001)
@@ -59,15 +66,19 @@ export async function generateAcceptanceId(): Promise<string> {
 
   const count = await prisma.digitalAcceptance.count();
   const nextNumber = count + 1;
-  const padded = String(nextNumber).padStart(6, '0');
+  const padded = String(nextNumber).padStart(6, "0");
 
   let candidate = `${prefix}-${padded}`;
-  let exists = await prisma.digitalAcceptance.findUnique({ where: { acceptanceId: candidate } });
+  let exists = await prisma.digitalAcceptance.findUnique({
+    where: { acceptanceId: candidate },
+  });
   let offset = 1;
   while (exists) {
-    const nextOffsetPadded = String(nextNumber + offset).padStart(6, '0');
+    const nextOffsetPadded = String(nextNumber + offset).padStart(6, "0");
     candidate = `${prefix}-${nextOffsetPadded}`;
-    exists = await prisma.digitalAcceptance.findUnique({ where: { acceptanceId: candidate } });
+    exists = await prisma.digitalAcceptance.findUnique({
+      where: { acceptanceId: candidate },
+    });
     offset++;
   }
 
@@ -83,19 +94,21 @@ export async function generateApprovalId(): Promise<string> {
 
   const count = await prisma.digitalApproval.count();
   const nextNumber = count + 1;
-  const padded = String(nextNumber).padStart(6, '0');
+  const padded = String(nextNumber).padStart(6, "0");
 
   let candidate = `${prefix}-${padded}`;
-  let exists = await prisma.digitalApproval.findUnique({ where: { approvalId: candidate } });
+  let exists = await prisma.digitalApproval.findUnique({
+    where: { approvalId: candidate },
+  });
   let offset = 1;
   while (exists) {
-    const nextOffsetPadded = String(nextNumber + offset).padStart(6, '0');
+    const nextOffsetPadded = String(nextNumber + offset).padStart(6, "0");
     candidate = `${prefix}-${nextOffsetPadded}`;
-    exists = await prisma.digitalApproval.findUnique({ where: { approvalId: candidate } });
+    exists = await prisma.digitalApproval.findUnique({
+      where: { approvalId: candidate },
+    });
     offset++;
   }
 
   return candidate;
 }
-=======
->>>>>>> 02b8974 (Initial Draft for Genesis Business Card)

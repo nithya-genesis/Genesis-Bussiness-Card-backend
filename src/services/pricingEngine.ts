@@ -1,9 +1,5 @@
-import { prisma } from '../models/prisma.js';
-import { config } from '../config/index.js';
-<<<<<<< HEAD
-import { SettingService } from './settingService.js';
-=======
->>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
+import { prisma } from "../models/prisma.js";
+import { config } from "../config/index.js";
 
 export interface CustomProgramInput {
   programId?: string;
@@ -11,7 +7,7 @@ export interface CustomProgramInput {
   name?: string;
   code?: string;
   hours: number;
-  pricingType?: 'PER_STUDENT' | 'PER_HOUR' | 'FIXED';
+  pricingType?: "PER_STUDENT" | "PER_HOUR" | "FIXED";
   rate?: number;
   unitRate?: number;
 }
@@ -21,7 +17,7 @@ export interface CustomItemInput {
   name: string;
   description?: string;
   quantity?: number;
-  pricingType?: 'PER_STUDENT' | 'PER_HOUR' | 'FIXED' | 'FLAT' | 'PER_UNIT';
+  pricingType?: "PER_STUDENT" | "PER_HOUR" | "FIXED" | "FLAT" | "PER_UNIT";
   unitPrice: number;
 }
 
@@ -48,12 +44,12 @@ export interface PricingCalculationInput {
   planType?: string;
   studentCount: number;
   hourlyRate?: number; // Optional override (for custom rate)
-  pricingModel?: 'HOURLY' | 'FIXED_PLAN' | 'CUSTOM';
+  pricingModel?: "HOURLY" | "FIXED_PLAN" | "CUSTOM";
   selectedAddonIds?: string[];
   customPrograms?: any[];
   customProgramsData?: any;
   customItems?: CustomItemInput[];
-  discountType?: 'FIXED' | 'PERCENTAGE';
+  discountType?: "FIXED" | "PERCENTAGE";
   discountValue?: number;
   gstRate?: number; // Optional GST rate override, defaults to system setting or 18%
 }
@@ -82,7 +78,7 @@ export interface PricingCalculationResult {
   customItems?: CalculatedCustomItemResult[];
   customItemsTotalCost: number;
   subtotal: number;
-  discountType: 'FIXED' | 'PERCENTAGE';
+  discountType: "FIXED" | "PERCENTAGE";
   discountValue: number;
   discountAmount: number;
   taxableAmount: number;
@@ -100,12 +96,9 @@ export interface PricingCalculationResult {
  * Retrieves the live system-wide default hourly rate from DB settings with fallback to env
  */
 export async function getSystemDefaultHourlyRate(): Promise<number> {
-<<<<<<< HEAD
-  return SettingService.getDefaultHourlyRate();
-=======
   try {
     const setting = await prisma.systemSetting.findUnique({
-      where: { key: 'DEFAULT_HOURLY_RATE' },
+      where: { key: "DEFAULT_HOURLY_RATE" },
     });
     if (setting && setting.value) {
       const parsed = parseFloat(setting.value);
@@ -117,19 +110,15 @@ export async function getSystemDefaultHourlyRate(): Promise<number> {
     // Fallback on failure / pre-migration
   }
   return config.defaultHourlyRate;
->>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
 }
 
 /**
  * Retrieves the live system-wide default GST percentage (e.g. 18.0)
  */
 export async function getSystemDefaultGstRate(): Promise<number> {
-<<<<<<< HEAD
-  return SettingService.getDefaultGstRate();
-=======
   try {
     const setting = await prisma.systemSetting.findUnique({
-      where: { key: 'DEFAULT_GST_RATE' },
+      where: { key: "DEFAULT_GST_RATE" },
     });
     if (setting && setting.value) {
       const parsed = parseFloat(setting.value);
@@ -141,7 +130,6 @@ export async function getSystemDefaultGstRate(): Promise<number> {
     // Fallback on failure
   }
   return 18.0;
->>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
 }
 
 /**
@@ -149,7 +137,7 @@ export async function getSystemDefaultGstRate(): Promise<number> {
  * Server-side source of truth for all proposals
  */
 export async function calculateProposalPricing(
-  input: PricingCalculationInput
+  input: PricingCalculationInput,
 ): Promise<PricingCalculationResult> {
   const {
     planId,
@@ -159,23 +147,24 @@ export async function calculateProposalPricing(
     selectedAddonIds = [],
     customPrograms = [],
     customItems = [],
-    discountType = 'FIXED',
+    discountType = "FIXED",
     discountValue = 0,
     gstRate: customGstRate,
   } = input;
 
   if (studentCount <= 0) {
-    throw new Error('Student count must be greater than 0');
+    throw new Error("Student count must be greater than 0");
   }
 
   // Extract raw custom programs from either customPrograms or customProgramsData
-  const rawPrograms = (input.customPrograms && input.customPrograms.length > 0)
-    ? input.customPrograms
-    : (input.customProgramsData || []);
+  const rawPrograms =
+    input.customPrograms && input.customPrograms.length > 0
+      ? input.customPrograms
+      : input.customProgramsData || [];
   let parsedCustomPrograms: any[] = [];
   if (Array.isArray(rawPrograms)) {
     parsedCustomPrograms = rawPrograms;
-  } else if (typeof rawPrograms === 'string') {
+  } else if (typeof rawPrograms === "string") {
     try {
       parsedCustomPrograms = JSON.parse(rawPrograms);
     } catch {
@@ -185,7 +174,10 @@ export async function calculateProposalPricing(
 
   // 1. Fetch Plan details
   let plan = null;
-  const isExplicitCustom = input.planType === 'CUSTOM' || planId === 'CUSTOM' || (!planId && parsedCustomPrograms.length > 0);
+  const isExplicitCustom =
+    input.planType === "CUSTOM" ||
+    planId === "CUSTOM" ||
+    (!planId && parsedCustomPrograms.length > 0);
 
   if (planId && !isExplicitCustom) {
     plan = await prisma.plan.findUnique({
@@ -202,32 +194,40 @@ export async function calculateProposalPricing(
     }
   }
 
-  const isCustomPlan = isExplicitCustom || (plan && plan.code === 'CUSTOM') || (!plan && parsedCustomPrograms.length > 0);
+  const isCustomPlan =
+    isExplicitCustom ||
+    (plan && plan.code === "CUSTOM") ||
+    (!plan && parsedCustomPrograms.length > 0);
 
-  if (isCustomPlan && (!plan || plan.code !== 'CUSTOM')) {
+  if (isCustomPlan && (!plan || plan.code !== "CUSTOM")) {
     plan = await prisma.plan.findUnique({
-      where: { code: 'CUSTOM' },
+      where: { code: "CUSTOM" },
       include: { modules: true },
     });
   }
 
   if (!plan) {
     plan = {
-      id: 'CUSTOM',
-      name: 'Custom Plan',
-      code: 'CUSTOM',
-      description: 'Modular custom training curriculum',
+      id: "CUSTOM",
+      name: "Custom Plan",
+      code: "CUSTOM",
+      description: "Modular custom training curriculum",
       totalHours: 0,
-      pricingModel: 'CUSTOM',
+      pricingModel: "CUSTOM",
       fixedPrice: null,
-      status: 'ACTIVE',
+      status: "ACTIVE",
       modules: [],
     } as any;
   }
 
   const defaultHourlyRate = await getSystemDefaultHourlyRate();
-  const defaultGstRate = customGstRate !== undefined ? customGstRate : await getSystemDefaultGstRate();
-  const pricingModel = isCustomPlan ? 'CUSTOM' : (overridePricingModel || plan.pricingModel || 'HOURLY');
+  const defaultGstRate =
+    customGstRate !== undefined
+      ? customGstRate
+      : await getSystemDefaultGstRate();
+  const pricingModel = isCustomPlan
+    ? "CUSTOM"
+    : overridePricingModel || plan.pricingModel || "HOURLY";
 
   let effectiveHourlyRate = defaultHourlyRate;
   let baseTrainingCost = 0;
@@ -242,16 +242,15 @@ export async function calculateProposalPricing(
 
       for (const prog of parsedCustomPrograms) {
         let pType = prog.pricingType;
-<<<<<<< HEAD
-        let pRate = prog.unitRate !== undefined ? prog.unitRate : prog.rate;
-=======
         let pRate = prog.rate !== undefined ? prog.rate : prog.unitRate;
->>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
         let pHours = prog.hours;
         let pName = prog.name || prog.programName;
 
         // DB Fallback if fields are missing
-        if (prog.programId && (pRate === undefined || pHours === undefined || !pType || !pName)) {
+        if (
+          prog.programId &&
+          (pRate === undefined || pHours === undefined || !pType || !pName)
+        ) {
           try {
             const dbProg = await prisma.trainingProgram.findUnique({
               where: { id: prog.programId },
@@ -259,8 +258,18 @@ export async function calculateProposalPricing(
             if (dbProg) {
               pType = pType || dbProg.pricingType;
               const anyProg = dbProg as any;
-              pRate = pRate !== undefined ? pRate : (anyProg.rate ?? anyProg.defaultPrice ?? (anyProg.pricingType === 'PER_STUDENT' ? (anyProg.defaultPerStudentRate || 200) : (anyProg.defaultHourlyRate || defaultHourlyRate)));
-              pHours = pHours !== undefined ? pHours : (anyProg.hours ?? anyProg.defaultHours ?? 10);
+              pRate =
+                pRate !== undefined
+                  ? pRate
+                  : (anyProg.rate ??
+                    anyProg.defaultPrice ??
+                    (anyProg.pricingType === "PER_STUDENT"
+                      ? anyProg.defaultPerStudentRate || 200
+                      : anyProg.defaultHourlyRate || defaultHourlyRate));
+              pHours =
+                pHours !== undefined
+                  ? pHours
+                  : (anyProg.hours ?? anyProg.defaultHours ?? 10);
               pName = pName || dbProg.name;
             }
           } catch {
@@ -268,17 +277,17 @@ export async function calculateProposalPricing(
           }
         }
 
-        pType = pType || 'PER_HOUR';
+        pType = pType || "PER_HOUR";
         pRate = pRate !== undefined ? Number(pRate) : defaultHourlyRate;
         pHours = pHours !== undefined ? Number(pHours) : 0;
-        pName = pName || 'Custom Program';
+        pName = pName || "Custom Program";
 
         customTotalHours += pHours;
 
         let cost = 0;
-        if (pType === 'PER_STUDENT') {
+        if (pType === "PER_STUDENT") {
           cost = pRate * studentCount;
-        } else if (pType === 'FIXED') {
+        } else if (pType === "FIXED") {
           cost = pRate;
         } else {
           // PER_HOUR: hours * rate * studentCount
@@ -298,22 +307,32 @@ export async function calculateProposalPricing(
 
       totalHours = customTotalHours;
       baseTrainingCost = customBaseCost;
-      effectiveHourlyRate = totalHours > 0 && studentCount > 0
-        ? Math.round((baseTrainingCost / (totalHours * studentCount)) * 100) / 100
-        : defaultHourlyRate;
+      effectiveHourlyRate =
+        totalHours > 0 && studentCount > 0
+          ? Math.round((baseTrainingCost / (totalHours * studentCount)) * 100) /
+            100
+          : defaultHourlyRate;
     } else {
       totalHours = 0;
       baseTrainingCost = 0;
       effectiveHourlyRate = defaultHourlyRate;
     }
-  } else if (pricingModel === 'FIXED_PLAN' && plan.fixedPrice !== null && plan.fixedPrice !== undefined) {
+  } else if (
+    pricingModel === "FIXED_PLAN" &&
+    plan.fixedPrice !== null &&
+    plan.fixedPrice !== undefined
+  ) {
     baseTrainingCost = plan.fixedPrice;
-    effectiveHourlyRate = plan.totalHours > 0 && studentCount > 0 
-      ? plan.fixedPrice / (plan.totalHours * studentCount) 
-      : defaultHourlyRate;
+    effectiveHourlyRate =
+      plan.totalHours > 0 && studentCount > 0
+        ? plan.fixedPrice / (plan.totalHours * studentCount)
+        : defaultHourlyRate;
   } else {
     // Default HOURLY strategy: Hours × Students × Rate
-    effectiveHourlyRate = hourlyRate !== undefined && hourlyRate > 0 ? hourlyRate : defaultHourlyRate;
+    effectiveHourlyRate =
+      hourlyRate !== undefined && hourlyRate > 0
+        ? hourlyRate
+        : defaultHourlyRate;
     baseTrainingCost = plan.totalHours * studentCount * effectiveHourlyRate;
   }
 
@@ -325,15 +344,15 @@ export async function calculateProposalPricing(
     const addons = await prisma.addon.findMany({
       where: {
         id: { in: selectedAddonIds },
-        status: 'ACTIVE',
+        status: "ACTIVE",
       },
     });
 
     for (const addon of addons) {
       let itemCost = 0;
-      if (addon.pricingType === 'PER_STUDENT') {
+      if (addon.pricingType === "PER_STUDENT") {
         itemCost = addon.price * studentCount;
-      } else if (addon.pricingType === 'PER_HOUR') {
+      } else if (addon.pricingType === "PER_HOUR") {
         itemCost = addon.price * totalHours;
       } else {
         // FIXED
@@ -360,14 +379,14 @@ export async function calculateProposalPricing(
   if (customItems && customItems.length > 0) {
     for (const item of customItems) {
       if (!item.name || item.unitPrice < 0) continue;
-      const pType = item.pricingType || 'PER_STUDENT';
+      const pType = item.pricingType || "PER_STUDENT";
       let itemCost = 0;
       let effectiveQty = 1;
 
-      if (pType === 'PER_STUDENT') {
+      if (pType === "PER_STUDENT") {
         effectiveQty = studentCount;
         itemCost = item.unitPrice * studentCount;
-      } else if (pType === 'PER_HOUR') {
+      } else if (pType === "PER_HOUR") {
         effectiveQty = totalHours;
         itemCost = item.unitPrice * totalHours;
       } else {
@@ -393,8 +412,10 @@ export async function calculateProposalPricing(
   let discountAmount = 0;
 
   if (discountValue > 0) {
-    if (discountType === 'PERCENTAGE') {
-      discountAmount = Math.round(((subtotal * Math.min(discountValue, 100)) / 100) * 100) / 100;
+    if (discountType === "PERCENTAGE") {
+      discountAmount =
+        Math.round(((subtotal * Math.min(discountValue, 100)) / 100) * 100) /
+        100;
     } else {
       discountAmount = Math.min(discountValue, subtotal);
     }
@@ -402,12 +423,17 @@ export async function calculateProposalPricing(
 
   // 5. Compute Taxable Amount, Cost per student, GST (18%) and Grand Total
   const taxableAmount = Math.max(0, subtotal - discountAmount);
-  const costPerStudentBeforeGst = studentCount > 0 ? Math.round((taxableAmount / studentCount) * 100) / 100 : 0;
+  const costPerStudentBeforeGst =
+    studentCount > 0
+      ? Math.round((taxableAmount / studentCount) * 100) / 100
+      : 0;
   const gstRate = defaultGstRate;
   const gstAmount = Math.round(((taxableAmount * gstRate) / 100) * 100) / 100; // Round to 2 decimals
-  const gstPerStudent = studentCount > 0 ? Math.round((gstAmount / studentCount) * 100) / 100 : 0;
+  const gstPerStudent =
+    studentCount > 0 ? Math.round((gstAmount / studentCount) * 100) / 100 : 0;
   const grandTotal = Math.round((taxableAmount + gstAmount) * 100) / 100;
-  const finalCostPerStudent = studentCount > 0 ? Math.round((grandTotal / studentCount) * 100) / 100 : 0;
+  const finalCostPerStudent =
+    studentCount > 0 ? Math.round((grandTotal / studentCount) * 100) / 100 : 0;
   const finalTotal = grandTotal;
 
   return {
@@ -419,10 +445,12 @@ export async function calculateProposalPricing(
     pricingModel,
     effectiveHourlyRate,
     baseTrainingCost,
-    customPrograms: calculatedPrograms.length > 0 ? calculatedPrograms : undefined,
+    customPrograms:
+      calculatedPrograms.length > 0 ? calculatedPrograms : undefined,
     addons: calculatedAddons,
     addonsTotalCost,
-    customItems: calculatedCustomItems.length > 0 ? calculatedCustomItems : undefined,
+    customItems:
+      calculatedCustomItems.length > 0 ? calculatedCustomItems : undefined,
     customItemsTotalCost,
     subtotal,
     discountType,
@@ -436,6 +464,6 @@ export async function calculateProposalPricing(
     grandTotal,
     finalCostPerStudent,
     finalTotal,
-    currency: 'INR',
+    currency: "INR",
   };
 }

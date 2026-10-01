@@ -174,11 +174,6 @@ model Proposal {
   addons               ProposalAddon[]
   customItems          ProposalCustomItem[]
   versions             ProposalVersion[]
-<<<<<<< HEAD
-  acceptances          DigitalAcceptance[]
-  approvals            DigitalApproval[]
-=======
->>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
 
   @@index([proposalId])
   @@index([publicToken])
@@ -187,68 +182,6 @@ model Proposal {
   @@index([isDeleted])
 }
 
-<<<<<<< HEAD
-model DigitalAcceptance {
-  id              String   @id @default(uuid())
-  acceptanceId    String   @unique // e.g. GEN-ACC-2026-000001
-  proposalId      String
-  proposal        Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
-  proposalVersion Int      // Exact version of proposal accepted
-  
-  acceptedAt      DateTime @default(now())
-  acceptedByName  String?
-  acceptedByEmail String?
-  
-  studentCount    Int
-  taxableAmount   Float
-  gstAmount       Float
-  grandTotal      Float
-  
-  documentHash    String?  // SHA-256 integrity hash of accepted snapshot
-  snapshotData    String?  // JSON snapshot of accepted proposal
-  
-  ipAddress       String?
-  userAgent       String?
-  
-  createdAt       DateTime @default(now())
-
-  @@unique([proposalId, proposalVersion])
-  @@index([proposalId])
-  @@index([acceptanceId])
-}
-
-model DigitalApproval {
-  id              String   @id @default(uuid())
-  approvalId      String   @unique // e.g. GEN-APR-2026-000001
-  proposalId      String
-  proposal        Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
-  proposalVersion Int      // Exact version of proposal approved
-  
-  approvedAt      DateTime @default(now())
-  approvedById    String?
-  approvedByName  String?  // Actual BD Manager full name
-  approvedByRole  String   @default("BD_MANAGER")
-  
-  studentCount    Int
-  taxableAmount   Float
-  gstAmount       Float
-  grandTotal      Float
-  
-  documentHash    String?  // SHA-256 integrity hash of approved snapshot
-  snapshotData    String?  // JSON snapshot of approved proposal
-  
-  ipAddress       String?
-  userAgent       String?
-  
-  createdAt       DateTime @default(now())
-
-  @@unique([proposalId, proposalVersion])
-  @@index([proposalId])
-  @@index([approvalId])
-}
-
-=======
->>>>>>> 02b8974 (Initial Draft for Genesis Business Card)
 model ProposalAddon {
   id                  String   @id @default(uuid())
   proposalId          String
